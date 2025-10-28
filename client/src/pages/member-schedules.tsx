@@ -26,6 +26,10 @@ export default function MemberSchedulesPage() {
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
 
+  const { data: currentUser } = useQuery<User>({
+    queryKey: ["/api/auth/me"],
+  });
+
   const { data: schedules = [], isLoading } = useQuery<Schedule[]>({
     queryKey: ["/api/schedules", selectedMonth, selectedYear],
   });
@@ -66,8 +70,13 @@ export default function MemberSchedulesPage() {
     };
   });
 
-  const louvorSchedules = schedulesWithAssignments.filter(s => s.tipo === "louvor");
-  const obreirosSchedules = schedulesWithAssignments.filter(s => s.tipo === "obreiros");
+  // Filter schedules based on user's ministries
+  const hasLouvorMinistry = currentUser?.ministerioLouvor || false;
+  const hasObreiroMinistry = currentUser?.ministerioObreiro || false;
+  const hasAnyMinistry = hasLouvorMinistry || hasObreiroMinistry;
+  
+  const louvorSchedules = hasLouvorMinistry ? schedulesWithAssignments.filter(s => s.tipo === "louvor") : [];
+  const obreirosSchedules = hasObreiroMinistry ? schedulesWithAssignments.filter(s => s.tipo === "obreiros") : [];
 
   const months = [
     { value: 1, label: "Janeiro" },
@@ -122,9 +131,21 @@ export default function MemberSchedulesPage() {
 
       {isLoading ? (
         <p className="text-center text-muted-foreground py-8">Carregando escalas...</p>
+      ) : !hasAnyMinistry ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-muted-foreground text-lg">
+              Você não está cadastrado em nenhum ministério.
+            </p>
+            <p className="text-muted-foreground mt-2">
+              Entre em contato com a administração para ser adicionado a um ministério.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-8">
           {/* Escala de Louvor */}
+          {hasLouvorMinistry && (
           <div>
             <h2 className="font-sans text-2xl font-semibold mb-4 flex items-center gap-2">
               <Music className="w-6 h-6 text-primary" />
@@ -171,8 +192,10 @@ export default function MemberSchedulesPage() {
               </Card>
             )}
           </div>
+          )}
 
           {/* Escala de Obreiros */}
+          {hasObreiroMinistry && (
           <div>
             <h2 className="font-sans text-2xl font-semibold mb-4 flex items-center gap-2">
               <UsersIcon className="w-6 h-6 text-primary" />
@@ -216,6 +239,7 @@ export default function MemberSchedulesPage() {
               </Card>
             )}
           </div>
+          )}
         </div>
       )}
     </div>
