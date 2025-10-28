@@ -14,7 +14,8 @@ export const users = pgTable("users", {
   endereco: text("endereco"),
   bairro: text("bairro"),
   cidade: text("cidade"),
-  ministerio: text("ministerio"), // Louvor, Obreiros, Infantil, etc
+  ministerioLouvor: boolean("ministerio_louvor").notNull().default(false),
+  ministerioObreiro: boolean("ministerio_obreiro").notNull().default(false),
   isAdmin: boolean("is_admin").notNull().default(false),
   isLider: boolean("is_lider").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
