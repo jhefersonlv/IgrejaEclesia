@@ -10,7 +10,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { BookOpen, Video, GraduationCap, User, LogOut, Church, CalendarDays } from "lucide-react";
+import { BookOpen, Video, GraduationCap, User, LogOut, Church, CalendarDays, Heart } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 
@@ -42,6 +42,11 @@ export function AppSidebar({ userNome, isLider }: AppSidebarProps) {
       title: "Vídeos",
       url: "/membro/videos",
       icon: Video,
+    },
+    {
+      title: "Pedidos de Oração",
+      url: "/membro/oracoes",
+      icon: Heart,
     },
     {
       title: "Escalas",

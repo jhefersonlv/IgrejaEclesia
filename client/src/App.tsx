@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Login from "@/pages/login";
 import Prayers from "@/pages/prayers";
+import MemberPrayers from "@/pages/member-prayers";
 import { MemberLayout } from "@/components/member-layout";
 import { AdminLayout } from "@/components/admin-layout";
 import MemberDashboard from "@/pages/member-dashboard";
@@ -56,6 +57,11 @@ function Router() {
       <Route path="/membro/perfil">
         <MemberLayout>
           <MemberProfile />
+        </MemberLayout>
+      </Route>
+      <Route path="/membro/oracoes">
+        <MemberLayout>
+          <MemberPrayers />
         </MemberLayout>
       </Route>
       <Route path="/membro/escalas">
