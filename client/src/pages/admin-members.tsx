@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Users, Plus, Search, Download, Trash2, Shield } from "lucide-react";
+import { Users, Plus, Search, Download, Trash2, Shield, Pencil } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { User, InsertUser } from "@shared/schema";
 import { useForm } from "react-hook-form";
@@ -35,9 +35,29 @@ import { insertUserSchema } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { z } from "zod";
+
+// Schema for editing (all fields optional except nome and email)
+const editUserSchema = z.object({
+  nome: z.string().min(1, "Nome é obrigatório"),
+  email: z.string().email("Email inválido"),
+  senha: z.string().optional(),
+  dataNascimento: z.string().optional(),
+  profissao: z.string().optional(),
+  endereco: z.string().optional(),
+  bairro: z.string().optional(),
+  cidade: z.string().optional(),
+  isAdmin: z.boolean().optional(),
+  ministerio: z.string().nullable().optional(),
+  isLider: z.boolean().optional(),
+});
+
+type EditUserForm = z.infer<typeof editUserSchema>;
 
 export default function AdminMembers() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterBairro, setFilterBairro] = useState("");
   const [filterProfissao, setFilterProfissao] = useState("");
@@ -59,6 +79,23 @@ export default function AdminMembers() {
       bairro: "",
       cidade: "",
       isAdmin: false,
+    },
+  });
+
+  const editForm = useForm<EditUserForm>({
+    resolver: zodResolver(editUserSchema),
+    defaultValues: {
+      nome: "",
+      email: "",
+      senha: "",
+      dataNascimento: undefined,
+      profissao: "",
+      endereco: "",
+      bairro: "",
+      cidade: "",
+      isAdmin: false,
+      ministerio: "",
+      isLider: false,
     },
   });
 
@@ -104,6 +141,29 @@ export default function AdminMembers() {
     },
   });
 
+  const updateMemberMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertUser> }) => {
+      return await apiRequest<User>("PATCH", `/api/admin/members/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/members"] });
+      toast({
+        title: "Membro atualizado!",
+        description: "As informações do membro foram atualizadas.",
+      });
+      setIsEditOpen(false);
+      setEditingMember(null);
+      editForm.reset();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao atualizar membro",
+        description: error.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const toggleAdminMutation = useMutation({
     mutationFn: async ({ id, isAdmin }: { id: number; isAdmin: boolean }) => {
       return await apiRequest<User>("PATCH", `/api/admin/members/${id}/toggle-admin`, { isAdmin });
@@ -116,6 +176,24 @@ export default function AdminMembers() {
       });
     },
   });
+
+  const handleEditMember = (member: User) => {
+    setEditingMember(member);
+    editForm.reset({
+      nome: member.nome,
+      email: member.email,
+      senha: "", // Senha opcional na edição
+      dataNascimento: member.dataNascimento || undefined,
+      profissao: member.profissao || "",
+      endereco: member.endereco || "",
+      bairro: member.bairro || "",
+      cidade: member.cidade || "",
+      isAdmin: member.isAdmin,
+      ministerio: member.ministerio || "",
+      isLider: member.isLider || false,
+    });
+    setIsEditOpen(true);
+  };
 
   const filteredMembers = members.filter(member => {
     const matchesSearch = member.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -156,6 +234,16 @@ export default function AdminMembers() {
 
   const onSubmit = (data: InsertUser) => {
     createMemberMutation.mutate(data);
+  };
+
+  const onEditSubmit = (data: EditUserForm) => {
+    if (!editingMember) return;
+    // Remove senha if empty (optional field in update)
+    const updateData: Partial<InsertUser> = { ...data };
+    if (!updateData.senha || updateData.senha.trim() === "") {
+      delete updateData.senha;
+    }
+    updateMemberMutation.mutate({ id: editingMember.id, data: updateData });
   };
 
   return (
@@ -266,6 +354,116 @@ export default function AdminMembers() {
               </form>
             </DialogContent>
           </Dialog>
+
+          {/* Edit Member Dialog */}
+          <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Editar Membro</DialogTitle>
+                <DialogDescription>
+                  Atualize as informações do membro
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-nome">Nome Completo *</Label>
+                    <Input id="edit-nome" {...editForm.register("nome")} data-testid="input-edit-nome" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-email">Email *</Label>
+                    <Input id="edit-email" type="email" {...editForm.register("email")} data-testid="input-edit-email" />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="edit-senha">Nova Senha (deixe em branco para manter a atual)</Label>
+                    <Input id="edit-senha" type="password" {...editForm.register("senha")} data-testid="input-edit-senha" placeholder="********" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-dataNascimento">Data de Nascimento</Label>
+                    <Input id="edit-dataNascimento" type="date" {...editForm.register("dataNascimento")} data-testid="input-edit-birthdate" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-profissao">Profissão</Label>
+                    <Input id="edit-profissao" {...editForm.register("profissao")} data-testid="input-edit-profession" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-cidade">Cidade</Label>
+                    <Input id="edit-cidade" {...editForm.register("cidade")} data-testid="input-edit-city" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-bairro">Bairro</Label>
+                    <Input id="edit-bairro" {...editForm.register("bairro")} data-testid="input-edit-neighborhood" />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="edit-endereco">Endereço</Label>
+                    <Input id="edit-endereco" {...editForm.register("endereco")} data-testid="input-edit-address" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-ministerio">Ministério</Label>
+                    <Select
+                      value={editForm.watch("ministerio") || "_none"}
+                      onValueChange={(value) => editForm.setValue("ministerio", value === "_none" ? null : value)}
+                    >
+                      <SelectTrigger id="edit-ministerio" data-testid="select-edit-ministry">
+                        <SelectValue placeholder="Selecione o ministério" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_none">Nenhum</SelectItem>
+                        <SelectItem value="Louvor">Louvor</SelectItem>
+                        <SelectItem value="Obreiros">Obreiros</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="edit-isAdmin"
+                          {...editForm.register("isAdmin")}
+                          className="w-4 h-4 rounded border-input"
+                          data-testid="checkbox-edit-admin"
+                        />
+                        <Label htmlFor="edit-isAdmin" className="font-normal cursor-pointer">
+                          Administrador
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="edit-isLider"
+                          {...editForm.register("isLider")}
+                          className="w-4 h-4 rounded border-input"
+                          data-testid="checkbox-edit-leader"
+                        />
+                        <Label htmlFor="edit-isLider" className="font-normal cursor-pointer">
+                          Líder
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" disabled={updateMemberMutation.isPending} data-testid="button-submit-edit">
+                    {updateMemberMutation.isPending ? "Salvando..." : "Salvar Alterações"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -364,6 +562,14 @@ export default function AdminMembers() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditMember(member)}
+                          data-testid={`button-edit-${member.id}`}
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"

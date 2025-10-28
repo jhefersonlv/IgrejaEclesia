@@ -12,6 +12,7 @@ export interface IStorage {
   // Members
   getAllUsers(): Promise<User[]>;
   getUserById(id: number): Promise<User | null>;
+  updateUser(id: number, data: Partial<InsertUser>): Promise<User>;
   updateUserAdmin(id: number, isAdmin: boolean): Promise<User>;
   deleteUser(id: number): Promise<void>;
   
@@ -102,6 +103,20 @@ export class DatabaseStorage implements IStorage {
   async updateUserAdmin(id: number, isAdmin: boolean): Promise<User> {
     const result = await db.update(users)
       .set({ isAdmin })
+      .where(eq(users.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async updateUser(id: number, data: Partial<InsertUser>): Promise<User> {
+    // If password is provided, hash it
+    const updateData = { ...data };
+    if (updateData.senha) {
+      updateData.senha = await bcrypt.hash(updateData.senha, 10);
+    }
+    
+    const result = await db.update(users)
+      .set(updateData)
       .where(eq(users.id, id))
       .returning();
     return result[0];

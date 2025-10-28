@@ -72,7 +72,14 @@ Complete church website with public pages, secure member area, and administrativ
 - Ministry-based member suggestions
 
 ### Admin Panel (/admin)
-- Member management (CRUD, filters, CSV export, ministry/leader assignment)
+- **Member management** (full CRUD operations)
+  - Create new members with all fields
+  - Edit existing members (name, email, password, birthdate, profession, address, ministry, leader/admin status)
+  - Optional password update (empty preserves current password)
+  - Delete members
+  - Toggle admin permissions
+  - Filters by neighborhood and profession
+  - CSV export functionality
 - Course & lesson management
 - Event management
 - Materials management (PDFs & videos)
@@ -104,8 +111,9 @@ GET    /api/courses/:id/lessons
 GET    /api/materials
 GET    /api/admin/members
 POST   /api/admin/members
-DELETE /api/admin/members/:id
+PATCH  /api/admin/members/:id              # Edit member (all fields optional, empty strings sanitized)
 PATCH  /api/admin/members/:id/toggle-admin
+DELETE /api/admin/members/:id
 POST   /api/admin/courses
 DELETE /api/admin/courses/:id
 POST   /api/admin/lessons
@@ -128,6 +136,13 @@ DELETE /api/admin/materials/:id
 To create the first admin user, insert directly into database or use the create member form with admin checkbox.
 
 ## Recent Changes
+- **Member Editing Feature** (December 2024): Admins can now fully edit member information
+  - Edit dialog with all user fields (name, email, password, birthdate, profession, address, etc.)
+  - Optional password update - empty password field preserves existing password
+  - Backend sanitization of empty strings for optional fields (prevents database errors)
+  - Ministry and leader status assignment during edit
+  - Form validation with Zod schema
+  - End-to-end tested with Playwright
 - **Monthly Schedule System**: Complete workflow for worship and workers schedules
   - Leaders can create and manage schedules
   - Assign members to specific positions (Teclado, Violão, Baixo, Bateria, Voz, Backing)

@@ -156,6 +156,36 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  app.patch("/api/admin/members/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      // Create a partial schema for updates (senha is optional)
+      const updateSchema = insertUserSchema.partial();
+      const userData = updateSchema.parse(req.body);
+      
+      // Sanitize empty strings to undefined for optional fields
+      const sanitizedData = Object.fromEntries(
+        Object.entries(userData).map(([key, value]) => {
+          // Convert empty strings to undefined for optional fields
+          if (value === "" && key !== "nome" && key !== "email") {
+            return [key, undefined];
+          }
+          return [key, value];
+        })
+      );
+      
+      const updatedUser = await storage.updateUser(id, sanitizedData);
+      const { senha, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      console.error("Update member error:", error);
+      res.status(500).json({ message: "Erro ao atualizar membro" });
+    }
+  });
+
   app.patch("/api/admin/members/:id/toggle-admin", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
