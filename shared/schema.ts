@@ -70,6 +70,18 @@ export const prayerRequests = pgTable("prayer_requests", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Notifications table
+export const notifications = pgTable("notifications", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  titulo: text("titulo").notNull(),
+  mensagem: text("mensagem").notNull(),
+  tipo: text("tipo").notNull(), // info, success, warning, error
+  link: text("link"),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Relations
 export const coursesRelations = relations(courses, ({ many }) => ({
   lessons: many(lessons),
@@ -123,6 +135,12 @@ export const insertPrayerRequestSchema = createInsertSchema(prayerRequests, {
   isPublic: true,
 });
 
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+  isRead: true,
+});
+
 // Login schema
 export const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -142,4 +160,6 @@ export type Material = typeof materials.$inferSelect;
 export type InsertMaterial = z.infer<typeof insertMaterialSchema>;
 export type PrayerRequest = typeof prayerRequests.$inferSelect;
 export type InsertPrayerRequest = z.infer<typeof insertPrayerRequestSchema>;
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type LoginCredentials = z.infer<typeof loginSchema>;

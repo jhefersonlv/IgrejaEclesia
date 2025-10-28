@@ -24,7 +24,7 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <Church className="w-8 h-8 text-primary" />
             <div>
-              <h1 className="font-sans text-xl font-semibold text-foreground">Igreja Comunidade</h1>
+              <h1 className="font-sans text-xl font-semibold text-foreground">Comunidade Eclesia</h1>
               <p className="text-xs text-muted-foreground">Uma casa para todos</p>
             </div>
           </div>
@@ -47,7 +47,6 @@ export default function Home() {
           </Link>
         </div>
       </header>
-
       {/* Hero Section */}
       <section className="relative h-[85vh] flex items-center justify-center overflow-hidden">
         <div 
@@ -75,7 +74,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
       {/* About Section */}
       <section id="sobre" className="py-20 px-6">
         <div className="max-w-7xl mx-auto">
@@ -109,7 +107,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
       {/* Worship Schedule */}
       <section id="cultos" className="py-20 px-6 bg-card">
         <div className="max-w-7xl mx-auto">
@@ -164,7 +161,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
       {/* Events Section */}
       <section id="eventos" className="py-20 px-6">
         <div className="max-w-7xl mx-auto">
@@ -220,7 +216,6 @@ export default function Home() {
           )}
         </div>
       </section>
-
       {/* Contact Section */}
       <section id="contato" className="py-20 px-6 bg-card">
         <div className="max-w-7xl mx-auto">
@@ -274,7 +269,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
       {/* Footer */}
       <footer className="bg-foreground/5 border-t py-8 px-6">
         <div className="max-w-7xl mx-auto text-center">
