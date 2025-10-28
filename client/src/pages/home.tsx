@@ -56,8 +56,7 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/60" />
         </div>
         <div className="relative z-10 text-center px-6 max-w-4xl">
-          <h2 className="font-sans text-5xl md:text-6xl font-bold text-white mb-6" data-testid="text-hero-title">Bem-vindo à
-           comunidade Eclesia</h2>
+          <h2 className="font-sans text-5xl md:text-6xl font-bold text-white mb-6" data-testid="text-hero-title">Bem-vindo à comunidade Eclesia</h2>
           <p className="text-xl md:text-2xl text-white/90 mb-8" data-testid="text-hero-subtitle">
             Um lugar de fé, esperança e amor para toda a família
           </p>
