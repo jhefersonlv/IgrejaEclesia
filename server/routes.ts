@@ -401,6 +401,16 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  app.get("/api/admin/analytics/courses", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const analytics = await storage.getCourseAnalytics();
+      res.json(analytics);
+    } catch (error) {
+      console.error("Get course analytics error:", error);
+      res.status(500).json({ message: "Erro ao buscar analytics de cursos" });
+    }
+  });
+
   // Schedule Routes (for leaders and members)
   const requireLeader = (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user?.isLider && !req.user?.isAdmin) {

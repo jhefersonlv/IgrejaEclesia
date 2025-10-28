@@ -84,6 +84,23 @@ export interface IStorage {
   createOrUpdateLessonCompletion(userId: number, lessonId: number, score: number, completed: boolean): Promise<LessonCompletion>;
   getCourseProgress(userId: number, courseId: number): Promise<{ totalLessons: number, completedLessons: number, progress: number }>;
   getAllUsersProgress(courseId: number): Promise<{ userId: number; userName: string; progress: number; completedLessons: number }[]>;
+  
+  // Course Analytics
+  getCourseAnalytics(): Promise<{
+    totalCourses: number;
+    totalLessons: number;
+    totalCompletions: number;
+    averageCompletionRate: number;
+    courseStats: {
+      courseId: number;
+      courseName: string;
+      totalLessons: number;
+      totalCompletions: number;
+      completionRate: number;
+      studentsStarted: number;
+      studentsCompleted: number;
+    }[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -500,6 +517,101 @@ export class DatabaseStorage implements IStorage {
     );
 
     return results.filter(r => r.completedLessons > 0); // Only return users with progress
+  }
+
+  async getCourseAnalytics() {
+    const allCourses = await this.getAllCourses();
+    const totalCourses = allCourses.length;
+    
+    // Fetch all lessons and all completions ONCE
+    const allLessons = await db.select().from(lessons);
+    const allCompletions = await db.select()
+      .from(lessonCompletions)
+      .where(eq(lessonCompletions.completed, true));
+    
+    // Group lessons by course ID for O(1) lookup
+    const lessonsByCourse = new Map<number, typeof allLessons>();
+    const lessonToCourse = new Map<number, number>();
+    
+    allLessons.forEach(lesson => {
+      if (!lessonsByCourse.has(lesson.courseId)) {
+        lessonsByCourse.set(lesson.courseId, []);
+      }
+      lessonsByCourse.get(lesson.courseId)!.push(lesson);
+      lessonToCourse.set(lesson.id, lesson.courseId);
+    });
+    
+    // Group completions by course ID in ONE pass (O(n) instead of O(n*m))
+    const completionsByCourse = new Map<number, typeof allCompletions>();
+    allCompletions.forEach(completion => {
+      const courseId = lessonToCourse.get(completion.lessonId);
+      if (courseId !== undefined) {
+        if (!completionsByCourse.has(courseId)) {
+          completionsByCourse.set(courseId, []);
+        }
+        completionsByCourse.get(courseId)!.push(completion);
+      }
+    });
+    
+    const totalLessons = allLessons.length;
+    const totalCompletions = allCompletions.length;
+    const courseStats = [];
+
+    // Now iterate courses and use precomputed maps for O(1) access
+    for (const course of allCourses) {
+      const courseLessons = lessonsByCourse.get(course.id) || [];
+
+      if (courseLessons.length === 0) {
+        courseStats.push({
+          courseId: course.id,
+          courseName: course.nome,
+          totalLessons: 0,
+          totalCompletions: 0,
+          completionRate: 0,
+          studentsStarted: 0,
+          studentsCompleted: 0,
+        });
+        continue;
+      }
+
+      const courseCompletions = completionsByCourse.get(course.id) || [];
+
+      // Count unique users who completed at least one lesson
+      const userCompletionMap = new Map<number, number>();
+      courseCompletions.forEach(c => {
+        userCompletionMap.set(c.userId, (userCompletionMap.get(c.userId) || 0) + 1);
+      });
+
+      const studentsStarted = userCompletionMap.size;
+      const studentsCompleted = Array.from(userCompletionMap.values())
+        .filter(count => count === courseLessons.length).length;
+
+      const completionRate = studentsStarted > 0 
+        ? Math.round((studentsCompleted / studentsStarted) * 100)
+        : 0;
+
+      courseStats.push({
+        courseId: course.id,
+        courseName: course.nome,
+        totalLessons: courseLessons.length,
+        totalCompletions: courseCompletions.length,
+        completionRate,
+        studentsStarted,
+        studentsCompleted,
+      });
+    }
+
+    const averageCompletionRate = courseStats.length > 0
+      ? Math.round(courseStats.reduce((sum, c) => sum + c.completionRate, 0) / courseStats.length)
+      : 0;
+
+    return {
+      totalCourses,
+      totalLessons,
+      totalCompletions,
+      averageCompletionRate,
+      courseStats,
+    };
   }
 }
 
