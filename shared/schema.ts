@@ -104,6 +104,31 @@ export const scheduleAssignments = pgTable("schedule_assignments", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Questions table (perguntas do quiz por lição)
+export const questions = pgTable("questions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  lessonId: integer("lesson_id").notNull().references(() => lessons.id, { onDelete: "cascade" }),
+  pergunta: text("pergunta").notNull(),
+  opcaoA: text("opcao_a").notNull(),
+  opcaoB: text("opcao_b").notNull(),
+  opcaoC: text("opcao_c").notNull(),
+  respostaCorreta: text("resposta_correta").notNull(), // 'A', 'B', ou 'C'
+  ordem: integer("ordem").notNull().default(1), // 1, 2, ou 3
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Lesson completions (conclusão de lições pelos usuários)
+export const lessonCompletions = pgTable("lesson_completions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  lessonId: integer("lesson_id").notNull().references(() => lessons.id, { onDelete: "cascade" }),
+  completed: boolean("completed").notNull().default(false),
+  score: integer("score").notNull().default(0), // 0-3 (número de acertos)
+  tentativas: integer("tentativas").notNull().default(1),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Relations
 export const coursesRelations = relations(courses, ({ many }) => ({
   lessons: many(lessons),
@@ -173,6 +198,23 @@ export const insertScheduleAssignmentSchema = createInsertSchema(scheduleAssignm
   createdAt: true,
 });
 
+export const insertQuestionSchema = createInsertSchema(questions, {
+  pergunta: z.string().min(10, "Pergunta deve ter no mínimo 10 caracteres"),
+  opcaoA: z.string().min(1, "Opção A é obrigatória"),
+  opcaoB: z.string().min(1, "Opção B é obrigatória"),
+  opcaoC: z.string().min(1, "Opção C é obrigatória"),
+  respostaCorreta: z.enum(["A", "B", "C"], { message: "Resposta correta deve ser A, B ou C" }),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertLessonCompletionSchema = createInsertSchema(lessonCompletions).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
 // Login schema
 export const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -198,4 +240,8 @@ export type Schedule = typeof schedules.$inferSelect;
 export type InsertSchedule = z.infer<typeof insertScheduleSchema>;
 export type ScheduleAssignment = typeof scheduleAssignments.$inferSelect;
 export type InsertScheduleAssignment = z.infer<typeof insertScheduleAssignmentSchema>;
+export type Question = typeof questions.$inferSelect;
+export type InsertQuestion = z.infer<typeof insertQuestionSchema>;
+export type LessonCompletion = typeof lessonCompletions.$inferSelect;
+export type InsertLessonCompletion = z.infer<typeof insertLessonCompletionSchema>;
 export type LoginCredentials = z.infer<typeof loginSchema>;

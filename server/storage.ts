@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments } from "@shared/schema";
-import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment } from "@shared/schema";
+import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments, questions, lessonCompletions } from "@shared/schema";
+import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment, Question, InsertQuestion, LessonCompletion, InsertLessonCompletion } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
@@ -72,6 +72,18 @@ export interface IStorage {
   // Members with ministry filter
   getUsersByMinistry(ministerio: string): Promise<User[]>;
   updateUserMinistry(id: number, ministerio: string | null, isLider: boolean): Promise<User>;
+  
+  // Questions
+  getQuestionsByLessonId(lessonId: number): Promise<Question[]>;
+  createQuestion(data: InsertQuestion): Promise<Question>;
+  deleteQuestion(id: number): Promise<void>;
+  deleteQuestionsByLessonId(lessonId: number): Promise<void>;
+  
+  // Lesson Completions
+  getLessonCompletion(userId: number, lessonId: number): Promise<LessonCompletion | null>;
+  createOrUpdateLessonCompletion(userId: number, lessonId: number, score: number, completed: boolean): Promise<LessonCompletion>;
+  getCourseProgress(userId: number, courseId: number): Promise<{ totalLessons: number, completedLessons: number, progress: number }>;
+  getAllUsersProgress(courseId: number): Promise<{ userId: number; userName: string; progress: number; completedLessons: number }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -371,6 +383,123 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, id))
       .returning();
     return result[0];
+  }
+
+  // Questions
+  async getQuestionsByLessonId(lessonId: number): Promise<Question[]> {
+    return await db.select().from(questions)
+      .where(eq(questions.lessonId, lessonId))
+      .orderBy(questions.ordem);
+  }
+
+  async createQuestion(data: InsertQuestion): Promise<Question> {
+    const result = await db.insert(questions).values(data).returning();
+    return result[0];
+  }
+
+  async deleteQuestion(id: number): Promise<void> {
+    await db.delete(questions).where(eq(questions.id, id));
+  }
+
+  async deleteQuestionsByLessonId(lessonId: number): Promise<void> {
+    await db.delete(questions).where(eq(questions.lessonId, lessonId));
+  }
+
+  // Lesson Completions
+  async getLessonCompletion(userId: number, lessonId: number): Promise<LessonCompletion | null> {
+    const result = await db.select().from(lessonCompletions)
+      .where(and(
+        eq(lessonCompletions.userId, userId),
+        eq(lessonCompletions.lessonId, lessonId)
+      ))
+      .limit(1);
+    return result[0] || null;
+  }
+
+  async createOrUpdateLessonCompletion(userId: number, lessonId: number, score: number, completed: boolean): Promise<LessonCompletion> {
+    const existing = await this.getLessonCompletion(userId, lessonId);
+    
+    if (existing) {
+      const result = await db.update(lessonCompletions)
+        .set({
+          score,
+          completed,
+          tentativas: existing.tentativas + 1,
+          completedAt: completed ? new Date() : null,
+        })
+        .where(eq(lessonCompletions.id, existing.id))
+        .returning();
+      return result[0];
+    } else {
+      const result = await db.insert(lessonCompletions)
+        .values({
+          userId,
+          lessonId,
+          score,
+          completed,
+          completedAt: completed ? new Date() : null,
+        })
+        .returning();
+      return result[0];
+    }
+  }
+
+  async getCourseProgress(userId: number, courseId: number): Promise<{ totalLessons: number, completedLessons: number, progress: number }> {
+    const courseLessons = await this.getLessonsByCourseId(courseId);
+    const totalLessons = courseLessons.length;
+
+    if (totalLessons === 0) {
+      return { totalLessons: 0, completedLessons: 0, progress: 0 };
+    }
+
+    const completions = await db.select()
+      .from(lessonCompletions)
+      .where(and(
+        eq(lessonCompletions.userId, userId),
+        eq(lessonCompletions.completed, true)
+      ));
+
+    const completedLessonIds = new Set(completions.map(c => c.lessonId));
+    const completedLessons = courseLessons.filter(l => completedLessonIds.has(l.id)).length;
+    const progress = Math.round((completedLessons / totalLessons) * 100);
+
+    return { totalLessons, completedLessons, progress };
+  }
+
+  async getAllUsersProgress(courseId: number): Promise<{ userId: number; userName: string; progress: number; completedLessons: number }[]> {
+    const courseLessons = await this.getLessonsByCourseId(courseId);
+    const totalLessons = courseLessons.length;
+
+    if (totalLessons === 0) {
+      return [];
+    }
+
+    const allUsers = await this.getAllUsers();
+    const lessonIds = courseLessons.map(l => l.id);
+
+    const results = await Promise.all(
+      allUsers.map(async (user) => {
+        const completions = await db.select()
+          .from(lessonCompletions)
+          .where(and(
+            eq(lessonCompletions.userId, user.id),
+            eq(lessonCompletions.completed, true)
+          ));
+
+        const completedLessonIds = new Set(completions.map(c => c.lessonId));
+        const completedLessons = lessonIds.filter(id => completedLessonIds.has(id)).length;
+        const progress = Math.round((completedLessons / totalLessons) * 100);
+
+        return {
+          userId: user.id,
+          userName: user.nome,
+          progress,
+          completedLessons,
+        };
+      })
+    );
+
+    return results.filter(r => r.completedLessons > 0); // Only return users with progress
   }
 }
 
