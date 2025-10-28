@@ -26,11 +26,11 @@ export default function MemberSchedulesPage() {
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
 
-  const { data: currentUser } = useQuery<User>({
+  const { data: currentUser, isLoading: isLoadingUser } = useQuery<User>({
     queryKey: ["/api/auth/me"],
   });
 
-  const { data: schedules = [], isLoading } = useQuery<Schedule[]>({
+  const { data: schedules = [], isLoading: isLoadingSchedules } = useQuery<Schedule[]>({
     queryKey: ["/api/schedules", selectedMonth, selectedYear],
   });
 
@@ -129,7 +129,7 @@ export default function MemberSchedulesPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {(isLoadingUser || isLoadingSchedules) ? (
         <p className="text-center text-muted-foreground py-8">Carregando escalas...</p>
       ) : !hasAnyMinistry ? (
         <Card>

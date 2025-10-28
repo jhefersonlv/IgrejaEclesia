@@ -1,7 +1,7 @@
 # Igreja Comunidade - Portal da Igreja
 
 ## Overview
-Complete church website with public pages, secure member area, and administrative panel. Built with React, TypeScript, Express, and PostgreSQL.
+Complete church website with public pages, secure member area, and administrative panel. Built with React, TypeScript, Express, and PostgreSQL. Admins access the member interface with additional administrative options.
 
 ## Project Structure
 ```
@@ -34,7 +34,7 @@ Complete church website with public pages, secure member area, and administrativ
 ```
 
 ## Database Schema
-- **users**: Members and administrators (with ministerio and isLider fields)
+- **users**: Members and administrators (with ministerioLouvor, ministerioObreiro boolean fields and isLider)
 - **events**: Church events (public)
 - **courses**: Educational courses
 - **lessons**: Course lessons (video-based)
@@ -68,8 +68,12 @@ Complete church website with public pages, secure member area, and administrativ
 - PDF materials access
 - Private YouTube videos
 - User profile view
-- Monthly schedules viewer (louvor & obreiros)
-- Sidebar navigation
+- **Ministry-based schedule viewer**
+  - Members with Louvor ministry see only worship schedules
+  - Members with Obreiro ministry see only workers schedules
+  - Members with no ministry see informative message
+  - Members with both ministries see both schedules
+- Sidebar navigation with admin access for administrators
 
 ### Leader Area (/lider)
 - Schedule management (leaders & admins only)
@@ -79,9 +83,12 @@ Complete church website with public pages, secure member area, and administrativ
 - Ministry-based member suggestions
 
 ### Admin Panel (/admin)
+- Accessible to administrators through member sidebar link "Painel Admin"
+- Admins see member interface first, then access admin panel as needed
 - **Member management** (full CRUD operations)
   - Create new members with all fields
-  - Edit existing members (name, email, password, birthdate, profession, address, ministry, leader/admin status)
+  - **Ministry checkboxes**: Assign members to Louvor and/or Obreiro ministries independently
+  - Edit existing members (name, email, password, birthdate, profession, address, ministries, leader/admin status)
   - Optional password update (empty preserves current password)
   - Delete members
   - Toggle admin permissions
@@ -107,7 +114,7 @@ Complete church website with public pages, secure member area, and administrativ
 - JWT tokens stored in localStorage
 - bcrypt password hashing
 - Route protection middleware
-- Separate member/admin access
+- Unified member/admin interface (admins access /membro with additional admin panel link)
 
 ## Design System
 - Colors: Blue (#2563eb), Gold (#fbbf24), White
@@ -156,6 +163,15 @@ GET    /api/admin/analytics/courses        # Course completion analytics
 To create the first admin user, insert directly into database or use the create member form with admin checkbox.
 
 ## Recent Changes
+- **Ministry Checkbox System** (October 2024): 
+  - Replaced single ministry dropdown with independent checkboxes for Louvor and Obreiro
+  - Members can now belong to multiple ministries simultaneously
+  - Schedule filtering: members see only schedules relevant to their assigned ministries
+  - Database migration: ministerio text field → ministerioLouvor and ministerioObreiro booleans
+- **Unified Admin/Member Navigation** (October 2024):
+  - Admins now redirect to /membro after login (same interface as members)
+  - Admin sidebar shows additional "Administração" section with "Painel Admin" link
+  - Maintains all admin functionality while providing unified UX
 - **Quiz System** (October 2024): Complete quiz system for lesson validation
   - Database schema with questions and lesson_completions tables
   - Admin interface for managing 3 questions per lesson
