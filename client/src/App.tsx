@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Login from "@/pages/login";
+import Prayers from "@/pages/prayers";
 import { MemberLayout } from "@/components/member-layout";
 import { AdminLayout } from "@/components/admin-layout";
 import MemberDashboard from "@/pages/member-dashboard";
@@ -18,6 +19,7 @@ import AdminMembers from "@/pages/admin-members";
 import AdminCourses from "@/pages/admin-courses";
 import AdminEvents from "@/pages/admin-events";
 import AdminMaterials from "@/pages/admin-materials";
+import AdminPrayers from "@/pages/admin-prayers";
 
 function Router() {
   return (
@@ -25,6 +27,7 @@ function Router() {
       {/* Public Routes */}
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
+      <Route path="/oracoes" component={Prayers} />
       
       {/* Member Routes */}
       <Route path="/membro">
@@ -77,6 +80,11 @@ function Router() {
       <Route path="/admin/materials">
         <AdminLayout>
           <AdminMaterials />
+        </AdminLayout>
+      </Route>
+      <Route path="/admin/prayers">
+        <AdminLayout>
+          <AdminPrayers />
         </AdminLayout>
       </Route>
       

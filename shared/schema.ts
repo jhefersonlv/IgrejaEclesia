@@ -59,6 +59,17 @@ export const materials = pgTable("materials", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Prayer requests table
+export const prayerRequests = pgTable("prayer_requests", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  nome: text("nome").notNull(),
+  email: text("email"),
+  pedido: text("pedido").notNull(),
+  status: text("status").notNull().default("pending"), // pending, approved, archived
+  isPublic: boolean("is_public").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Relations
 export const coursesRelations = relations(courses, ({ many }) => ({
   lessons: many(lessons),
@@ -101,6 +112,17 @@ export const insertMaterialSchema = createInsertSchema(materials).omit({
   createdAt: true,
 });
 
+export const insertPrayerRequestSchema = createInsertSchema(prayerRequests, {
+  nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
+  pedido: z.string().min(10, "Pedido deve ter no mínimo 10 caracteres"),
+  email: z.string().email("Email inválido").optional().or(z.literal("")),
+}).omit({
+  id: true,
+  createdAt: true,
+  status: true,
+  isPublic: true,
+});
+
 // Login schema
 export const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -118,4 +140,6 @@ export type Lesson = typeof lessons.$inferSelect;
 export type InsertLesson = z.infer<typeof insertLessonSchema>;
 export type Material = typeof materials.$inferSelect;
 export type InsertMaterial = z.infer<typeof insertMaterialSchema>;
+export type PrayerRequest = typeof prayerRequests.$inferSelect;
+export type InsertPrayerRequest = z.infer<typeof insertPrayerRequestSchema>;
 export type LoginCredentials = z.infer<typeof loginSchema>;

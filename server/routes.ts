@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
-import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, loginSchema } from "@shared/schema";
+import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
@@ -278,6 +278,64 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error("Delete material error:", error);
       res.status(500).json({ message: "Erro ao deletar material" });
+    }
+  });
+
+  // Prayer Request Routes
+  app.post("/api/prayers", async (req: Request, res: Response) => {
+    try {
+      const prayerData = insertPrayerRequestSchema.parse(req.body);
+      const newPrayer = await storage.createPrayerRequest(prayerData);
+      res.status(201).json(newPrayer);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      console.error("Create prayer request error:", error);
+      res.status(500).json({ message: "Erro ao criar pedido de oração" });
+    }
+  });
+
+  app.get("/api/prayers/public", async (req: Request, res: Response) => {
+    try {
+      const prayers = await storage.getPublicPrayerRequests();
+      res.json(prayers);
+    } catch (error) {
+      console.error("Get public prayers error:", error);
+      res.status(500).json({ message: "Erro ao buscar pedidos de oração" });
+    }
+  });
+
+  app.get("/api/admin/prayers", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const prayers = await storage.getAllPrayerRequests();
+      res.json(prayers);
+    } catch (error) {
+      console.error("Get all prayers error:", error);
+      res.status(500).json({ message: "Erro ao buscar pedidos de oração" });
+    }
+  });
+
+  app.patch("/api/admin/prayers/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { status, isPublic } = req.body;
+      const updatedPrayer = await storage.updatePrayerRequestStatus(id, status, isPublic);
+      res.json(updatedPrayer);
+    } catch (error) {
+      console.error("Update prayer status error:", error);
+      res.status(500).json({ message: "Erro ao atualizar pedido" });
+    }
+  });
+
+  app.delete("/api/admin/prayers/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deletePrayerRequest(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete prayer error:", error);
+      res.status(500).json({ message: "Erro ao deletar pedido" });
     }
   });
 }

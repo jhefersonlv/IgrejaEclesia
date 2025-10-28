@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, events, courses, lessons, materials } from "@shared/schema";
-import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial } from "@shared/schema";
+import { users, events, courses, lessons, materials, prayerRequests } from "@shared/schema";
+import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
@@ -36,6 +36,13 @@ export interface IStorage {
   getAllMaterials(): Promise<Material[]>;
   createMaterial(data: InsertMaterial): Promise<Material>;
   deleteMaterial(id: number): Promise<void>;
+  
+  // Prayer Requests
+  getAllPrayerRequests(): Promise<PrayerRequest[]>;
+  getPublicPrayerRequests(): Promise<PrayerRequest[]>;
+  createPrayerRequest(data: InsertPrayerRequest): Promise<PrayerRequest>;
+  updatePrayerRequestStatus(id: number, status: string, isPublic: boolean): Promise<PrayerRequest>;
+  deletePrayerRequest(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -142,6 +149,34 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMaterial(id: number): Promise<void> {
     await db.delete(materials).where(eq(materials.id, id));
+  }
+
+  // Prayer Requests
+  async getAllPrayerRequests(): Promise<PrayerRequest[]> {
+    return await db.select().from(prayerRequests).orderBy(prayerRequests.createdAt);
+  }
+
+  async getPublicPrayerRequests(): Promise<PrayerRequest[]> {
+    return await db.select().from(prayerRequests)
+      .where(eq(prayerRequests.isPublic, true))
+      .orderBy(prayerRequests.createdAt);
+  }
+
+  async createPrayerRequest(data: InsertPrayerRequest): Promise<PrayerRequest> {
+    const result = await db.insert(prayerRequests).values(data).returning();
+    return result[0];
+  }
+
+  async updatePrayerRequestStatus(id: number, status: string, isPublic: boolean): Promise<PrayerRequest> {
+    const result = await db.update(prayerRequests)
+      .set({ status, isPublic })
+      .where(eq(prayerRequests.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deletePrayerRequest(id: number): Promise<void> {
+    await db.delete(prayerRequests).where(eq(prayerRequests.id, id));
   }
 }
 
