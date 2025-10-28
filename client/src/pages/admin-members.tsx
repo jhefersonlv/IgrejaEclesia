@@ -293,14 +293,14 @@ export default function AdminMembers() {
 
             <div className="space-y-2">
               <Label htmlFor="bairro">Bairro</Label>
-              <Select value={filterBairro} onValueChange={setFilterBairro}>
+              <Select value={filterBairro || ""} onValueChange={setFilterBairro}>
                 <SelectTrigger id="bairro" data-testid="select-neighborhood">
                   <SelectValue placeholder="Todos os bairros" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">Todos os bairros</SelectItem>
                   {uniqueBairros.map((bairro) => (
-                    <SelectItem key={bairro} value={bairro}>{bairro}</SelectItem>
+                    <SelectItem key={bairro} value={bairro || ""}>{bairro}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -308,14 +308,14 @@ export default function AdminMembers() {
 
             <div className="space-y-2">
               <Label htmlFor="profissao">Profissão</Label>
-              <Select value={filterProfissao} onValueChange={setFilterProfissao}>
+              <Select value={filterProfissao || ""} onValueChange={setFilterProfissao}>
                 <SelectTrigger id="profissao" data-testid="select-profession">
                   <SelectValue placeholder="Todas as profissões" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">Todas as profissões</SelectItem>
                   {uniqueProfissoes.map((profissao) => (
-                    <SelectItem key={profissao} value={profissao}>{profissao}</SelectItem>
+                    <SelectItem key={profissao} value={profissao || ""}>{profissao}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
