@@ -20,6 +20,7 @@ import AdminCourses from "@/pages/admin-courses";
 import AdminEvents from "@/pages/admin-events";
 import AdminMaterials from "@/pages/admin-materials";
 import AdminPrayers from "@/pages/admin-prayers";
+import AdminAnalytics from "@/pages/admin-analytics";
 
 function Router() {
   return (
@@ -85,6 +86,11 @@ function Router() {
       <Route path="/admin/prayers">
         <AdminLayout>
           <AdminPrayers />
+        </AdminLayout>
+      </Route>
+      <Route path="/admin/analytics">
+        <AdminLayout>
+          <AdminAnalytics />
         </AdminLayout>
       </Route>
       

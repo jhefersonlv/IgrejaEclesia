@@ -23,6 +23,7 @@ export default function AdminPrayersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/prayers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/prayers/public"] });
       toast({
         title: "Status atualizado",
         description: "O pedido foi atualizado com sucesso.",

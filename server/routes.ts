@@ -319,10 +319,17 @@ export function registerRoutes(app: Express) {
   app.patch("/api/admin/prayers/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
-      const { status, isPublic } = req.body;
+      const updateSchema = z.object({
+        status: z.enum(["pending", "approved", "archived"]),
+        isPublic: z.boolean(),
+      });
+      const { status, isPublic } = updateSchema.parse(req.body);
       const updatedPrayer = await storage.updatePrayerRequestStatus(id, status, isPublic);
       res.json(updatedPrayer);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
       console.error("Update prayer status error:", error);
       res.status(500).json({ message: "Erro ao atualizar pedido" });
     }
@@ -336,6 +343,17 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error("Delete prayer error:", error);
       res.status(500).json({ message: "Erro ao deletar pedido" });
+    }
+  });
+
+  // Analytics Routes
+  app.get("/api/admin/analytics/members", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const analytics = await storage.getMemberAnalytics();
+      res.json(analytics);
+    } catch (error) {
+      console.error("Get analytics error:", error);
+      res.status(500).json({ message: "Erro ao buscar analytics" });
     }
   });
 }

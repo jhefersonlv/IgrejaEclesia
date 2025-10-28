@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Church, Users, GraduationCap, Calendar, BookOpen, LogOut, Home, Heart } from "lucide-react";
+import { Church, Users, GraduationCap, Calendar, BookOpen, LogOut, Home, Heart, BarChart3 } from "lucide-react";
 import type { User } from "@shared/schema";
 
 interface AdminLayoutProps {
@@ -43,6 +43,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const navItems = [
     { path: "/admin", icon: Home, label: "Dashboard" },
     { path: "/admin/members", icon: Users, label: "Membros" },
+    { path: "/admin/analytics", icon: BarChart3, label: "Analytics" },
     { path: "/admin/courses", icon: GraduationCap, label: "Cursos" },
     { path: "/admin/events", icon: Calendar, label: "Eventos" },
     { path: "/admin/materials", icon: BookOpen, label: "Materiais" },

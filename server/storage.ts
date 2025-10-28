@@ -43,6 +43,15 @@ export interface IStorage {
   createPrayerRequest(data: InsertPrayerRequest): Promise<PrayerRequest>;
   updatePrayerRequestStatus(id: number, status: string, isPublic: boolean): Promise<PrayerRequest>;
   deletePrayerRequest(id: number): Promise<void>;
+  
+  // Analytics
+  getMemberAnalytics(): Promise<{
+    totalMembers: number;
+    membersByAge: { ageGroup: string; count: number }[];
+    membersByNeighborhood: { neighborhood: string; count: number }[];
+    membersByProfession: { profession: string; count: number }[];
+    recentMembersCount: number;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -177,6 +186,84 @@ export class DatabaseStorage implements IStorage {
 
   async deletePrayerRequest(id: number): Promise<void> {
     await db.delete(prayerRequests).where(eq(prayerRequests.id, id));
+  }
+
+  // Analytics
+  async getMemberAnalytics() {
+    const allUsers = await db.select().from(users);
+    
+    const totalMembers = allUsers.length;
+    
+    // Calculate age groups
+    const ageGroups: Record<string, number> = {
+      "18-25": 0,
+      "26-35": 0,
+      "36-45": 0,
+      "46-55": 0,
+      "56-65": 0,
+      "66+": 0,
+    };
+    
+    const now = new Date();
+    allUsers.forEach(user => {
+      if (user.dataNascimento) {
+        const birthDate = new Date(user.dataNascimento);
+        const age = now.getFullYear() - birthDate.getFullYear();
+        
+        if (age >= 18 && age <= 25) ageGroups["18-25"]++;
+        else if (age >= 26 && age <= 35) ageGroups["26-35"]++;
+        else if (age >= 36 && age <= 45) ageGroups["36-45"]++;
+        else if (age >= 46 && age <= 55) ageGroups["46-55"]++;
+        else if (age >= 56 && age <= 65) ageGroups["56-65"]++;
+        else if (age >= 66) ageGroups["66+"]++;
+      }
+    });
+    
+    const membersByAge = Object.entries(ageGroups).map(([ageGroup, count]) => ({
+      ageGroup,
+      count,
+    }));
+    
+    // Count by neighborhood
+    const neighborhoodCounts: Record<string, number> = {};
+    allUsers.forEach(user => {
+      if (user.bairro) {
+        neighborhoodCounts[user.bairro] = (neighborhoodCounts[user.bairro] || 0) + 1;
+      }
+    });
+    
+    const membersByNeighborhood = Object.entries(neighborhoodCounts)
+      .map(([neighborhood, count]) => ({ neighborhood, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+    
+    // Count by profession
+    const professionCounts: Record<string, number> = {};
+    allUsers.forEach(user => {
+      if (user.profissao) {
+        professionCounts[user.profissao] = (professionCounts[user.profissao] || 0) + 1;
+      }
+    });
+    
+    const membersByProfession = Object.entries(professionCounts)
+      .map(([profession, count]) => ({ profession, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+    
+    // Count members joined in last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const recentMembersCount = allUsers.filter(user => 
+      new Date(user.createdAt) >= thirtyDaysAgo
+    ).length;
+    
+    return {
+      totalMembers,
+      membersByAge,
+      membersByNeighborhood,
+      membersByProfession,
+      recentMembersCount,
+    };
   }
 }
 
