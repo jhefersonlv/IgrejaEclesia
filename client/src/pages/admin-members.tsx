@@ -48,7 +48,8 @@ const editUserSchema = z.object({
   bairro: z.string().optional(),
   cidade: z.string().optional(),
   isAdmin: z.boolean().optional(),
-  ministerio: z.string().nullable().optional(),
+  ministerioLouvor: z.boolean().optional(),
+  ministerioObreiro: z.boolean().optional(),
   isLider: z.boolean().optional(),
 });
 
@@ -79,6 +80,8 @@ export default function AdminMembers() {
       bairro: "",
       cidade: "",
       isAdmin: false,
+      ministerioLouvor: false,
+      ministerioObreiro: false,
     },
   });
 
@@ -94,7 +97,8 @@ export default function AdminMembers() {
       bairro: "",
       cidade: "",
       isAdmin: false,
-      ministerio: "",
+      ministerioLouvor: false,
+      ministerioObreiro: false,
       isLider: false,
     },
   });
@@ -189,7 +193,8 @@ export default function AdminMembers() {
       bairro: member.bairro || "",
       cidade: member.cidade || "",
       isAdmin: member.isAdmin,
-      ministerio: member.ministerio || "",
+      ministerioLouvor: member.ministerioLouvor || false,
+      ministerioObreiro: member.ministerioObreiro || false,
       isLider: member.isLider || false,
     });
     setIsEditOpen(true);
@@ -328,6 +333,36 @@ export default function AdminMembers() {
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
+                    <Label>Ministérios</Label>
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="ministerioLouvor"
+                          {...form.register("ministerioLouvor")}
+                          className="w-4 h-4 rounded border-input"
+                          data-testid="checkbox-louvor"
+                        />
+                        <Label htmlFor="ministerioLouvor" className="font-normal cursor-pointer">
+                          Louvor
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="ministerioObreiro"
+                          {...form.register("ministerioObreiro")}
+                          className="w-4 h-4 rounded border-input"
+                          data-testid="checkbox-obreiro"
+                        />
+                        <Label htmlFor="ministerioObreiro" className="font-normal cursor-pointer">
+                          Obreiro
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
                     <div className="flex items-center space-x-2">
                       <input
                         type="checkbox"
@@ -406,21 +441,34 @@ export default function AdminMembers() {
                     <Input id="edit-endereco" {...editForm.register("endereco")} data-testid="input-edit-address" />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-ministerio">Ministério</Label>
-                    <Select
-                      value={editForm.watch("ministerio") || "_none"}
-                      onValueChange={(value) => editForm.setValue("ministerio", value === "_none" ? null : value)}
-                    >
-                      <SelectTrigger id="edit-ministerio" data-testid="select-edit-ministry">
-                        <SelectValue placeholder="Selecione o ministério" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="_none">Nenhum</SelectItem>
-                        <SelectItem value="Louvor">Louvor</SelectItem>
-                        <SelectItem value="Obreiros">Obreiros</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Ministérios</Label>
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="edit-ministerioLouvor"
+                          {...editForm.register("ministerioLouvor")}
+                          className="w-4 h-4 rounded border-input"
+                          data-testid="checkbox-edit-louvor"
+                        />
+                        <Label htmlFor="edit-ministerioLouvor" className="font-normal cursor-pointer">
+                          Louvor
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="edit-ministerioObreiro"
+                          {...editForm.register("ministerioObreiro")}
+                          className="w-4 h-4 rounded border-input"
+                          data-testid="checkbox-edit-obreiro"
+                        />
+                        <Label htmlFor="edit-ministerioObreiro" className="font-normal cursor-pointer">
+                          Obreiro
+                        </Label>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
