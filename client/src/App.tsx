@@ -14,6 +14,8 @@ import MemberCourses from "@/pages/member-courses";
 import MemberMaterials from "@/pages/member-materials";
 import MemberVideos from "@/pages/member-videos";
 import MemberProfile from "@/pages/member-profile";
+import MemberSchedules from "@/pages/member-schedules";
+import LeaderSchedules from "@/pages/leader-schedules";
 import AdminDashboard from "@/pages/admin-dashboard";
 import AdminMembers from "@/pages/admin-members";
 import AdminCourses from "@/pages/admin-courses";
@@ -54,6 +56,16 @@ function Router() {
       <Route path="/membro/perfil">
         <MemberLayout>
           <MemberProfile />
+        </MemberLayout>
+      </Route>
+      <Route path="/membro/escalas">
+        <MemberLayout>
+          <MemberSchedules />
+        </MemberLayout>
+      </Route>
+      <Route path="/lider/escalas">
+        <MemberLayout>
+          <LeaderSchedules />
         </MemberLayout>
       </Route>
       

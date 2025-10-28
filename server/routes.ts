@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
-import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema } from "@shared/schema";
+import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
@@ -18,7 +18,14 @@ async function authenticateToken(req: Request, res: Response, next: NextFunction
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
+    const user = await storage.getUserById(decoded.userId);
+    
+    if (!user) {
+      return res.status(403).json({ message: "Usuário não encontrado" });
+    }
+    
     (req as any).userId = decoded.userId;
+    (req as any).user = user;
     next();
   } catch (error) {
     return res.status(403).json({ message: "Token inválido" });
@@ -109,9 +116,16 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Admin Routes - Members
-  app.get("/api/admin/members", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  // Members list (accessible by leaders and admins)
+  app.get("/api/admin/members", authenticateToken, async (req: Request, res: Response) => {
     try {
+      const user = (req as any).user;
+      
+      // Only leaders and admins can access
+      if (!user.isLider && !user.isAdmin) {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+      
       const users = await storage.getAllUsers();
       const usersWithoutPasswords = users.map(({ senha, ...user }) => user);
       res.json(usersWithoutPasswords);
@@ -354,6 +368,147 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error("Get analytics error:", error);
       res.status(500).json({ message: "Erro ao buscar analytics" });
+    }
+  });
+
+  // Schedule Routes (for leaders and members)
+  const requireLeader = (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user?.isLider && !req.user?.isAdmin) {
+      return res.status(403).json({ message: "Acesso negado. Apenas líderes podem acessar." });
+    }
+    next();
+  };
+
+  // Get all schedules (members can view)
+  app.get("/api/schedules", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const schedules = await storage.getAllSchedules();
+      res.json(schedules);
+    } catch (error) {
+      console.error("Get schedules error:", error);
+      res.status(500).json({ message: "Erro ao buscar escalas" });
+    }
+  });
+
+  // Get schedule with assignments (must come before /:mes/:ano route)
+  app.get("/api/schedules/details/:id", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const schedule = await storage.getScheduleById(id);
+      if (!schedule) {
+        return res.status(404).json({ message: "Escala não encontrada" });
+      }
+      const assignments = await storage.getAssignmentsBySchedule(id);
+      res.json({ schedule, assignments });
+    } catch (error) {
+      console.error("Get schedule details error:", error);
+      res.status(500).json({ message: "Erro ao buscar detalhes da escala" });
+    }
+  });
+
+  // Get schedules by month
+  app.get("/api/schedules/:mes/:ano", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const mes = parseInt(req.params.mes);
+      const ano = parseInt(req.params.ano);
+      const schedules = await storage.getSchedulesByMonth(mes, ano);
+      res.json(schedules);
+    } catch (error) {
+      console.error("Get schedules by month error:", error);
+      res.status(500).json({ message: "Erro ao buscar escalas" });
+    }
+  });
+
+  // Create schedule (leaders only)
+  app.post("/api/schedules", authenticateToken, requireLeader, async (req: Request, res: Response) => {
+    try {
+      const scheduleData = insertScheduleSchema.parse(req.body);
+      const newSchedule = await storage.createSchedule(scheduleData);
+      res.status(201).json(newSchedule);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      console.error("Create schedule error:", error);
+      res.status(500).json({ message: "Erro ao criar escala" });
+    }
+  });
+
+  // Update schedule (leaders only)
+  app.patch("/api/schedules/:id", authenticateToken, requireLeader, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updateData = req.body;
+      const updatedSchedule = await storage.updateSchedule(id, updateData);
+      res.json(updatedSchedule);
+    } catch (error) {
+      console.error("Update schedule error:", error);
+      res.status(500).json({ message: "Erro ao atualizar escala" });
+    }
+  });
+
+  // Delete schedule (leaders only)
+  app.delete("/api/schedules/:id", authenticateToken, requireLeader, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteSchedule(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete schedule error:", error);
+      res.status(500).json({ message: "Erro ao deletar escala" });
+    }
+  });
+
+  // Create assignment (leaders only)
+  app.post("/api/assignments", authenticateToken, requireLeader, async (req: Request, res: Response) => {
+    try {
+      const assignmentData = insertScheduleAssignmentSchema.parse(req.body);
+      const newAssignment = await storage.createAssignment(assignmentData);
+      res.status(201).json(newAssignment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      console.error("Create assignment error:", error);
+      res.status(500).json({ message: "Erro ao criar atribuição" });
+    }
+  });
+
+  // Update assignment (leaders only)
+  app.patch("/api/assignments/:id", authenticateToken, requireLeader, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { userId } = req.body;
+      const updatedAssignment = await storage.updateAssignment(id, userId);
+      res.json(updatedAssignment);
+    } catch (error) {
+      console.error("Update assignment error:", error);
+      res.status(500).json({ message: "Erro ao atualizar atribuição" });
+    }
+  });
+
+  // Get users by ministry (for suggestions)
+  app.get("/api/users/ministry/:ministerio", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const ministerio = req.params.ministerio;
+      const users = await storage.getUsersByMinistry(ministerio);
+      res.json(users);
+    } catch (error) {
+      console.error("Get users by ministry error:", error);
+      res.status(500).json({ message: "Erro ao buscar membros" });
+    }
+  });
+
+  // Update user ministry (admin only)
+  app.patch("/api/admin/members/:id/ministry", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { ministerio, isLider } = req.body;
+      const updatedUser = await storage.updateUserMinistry(id, ministerio, isLider);
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Update user ministry error:", error);
+      res.status(500).json({ message: "Erro ao atualizar ministério" });
     }
   });
 }

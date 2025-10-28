@@ -10,15 +10,16 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { BookOpen, Video, GraduationCap, User, LogOut, Church } from "lucide-react";
+import { BookOpen, Video, GraduationCap, User, LogOut, Church, CalendarDays } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 
 interface AppSidebarProps {
   userNome?: string;
+  isLider?: boolean;
 }
 
-export function AppSidebar({ userNome }: AppSidebarProps) {
+export function AppSidebar({ userNome, isLider }: AppSidebarProps) {
   const [location, setLocation] = useLocation();
 
   const items = [
@@ -41,6 +42,11 @@ export function AppSidebar({ userNome }: AppSidebarProps) {
       title: "Vídeos",
       url: "/membro/videos",
       icon: Video,
+    },
+    {
+      title: "Escalas",
+      url: isLider ? "/lider/escalas" : "/membro/escalas",
+      icon: CalendarDays,
     },
     {
       title: "Perfil",

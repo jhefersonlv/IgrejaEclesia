@@ -14,7 +14,9 @@ export const users = pgTable("users", {
   endereco: text("endereco"),
   bairro: text("bairro"),
   cidade: text("cidade"),
+  ministerio: text("ministerio"), // Louvor, Obreiros, Infantil, etc
   isAdmin: boolean("is_admin").notNull().default(false),
+  isLider: boolean("is_lider").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -82,6 +84,26 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Schedules table (escalas)
+export const schedules = pgTable("schedules", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  mes: integer("mes").notNull(), // 1-12
+  ano: integer("ano").notNull(), // 2025, 2026, etc
+  tipo: text("tipo").notNull(), // louvor, obreiros
+  data: date("data").notNull(), // data específica do culto
+  observacoes: text("observacoes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Schedule assignments (atribuições de escala)
+export const scheduleAssignments = pgTable("schedule_assignments", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  scheduleId: integer("schedule_id").notNull().references(() => schedules.id, { onDelete: "cascade" }),
+  userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+  posicao: text("posicao").notNull(), // teclado, violao, baixo, bateria, voz, backing, obreiro
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Relations
 export const coursesRelations = relations(courses, ({ many }) => ({
   lessons: many(lessons),
@@ -141,6 +163,16 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
   isRead: true,
 });
 
+export const insertScheduleSchema = createInsertSchema(schedules).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertScheduleAssignmentSchema = createInsertSchema(scheduleAssignments).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Login schema
 export const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -162,4 +194,8 @@ export type PrayerRequest = typeof prayerRequests.$inferSelect;
 export type InsertPrayerRequest = z.infer<typeof insertPrayerRequestSchema>;
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Schedule = typeof schedules.$inferSelect;
+export type InsertSchedule = z.infer<typeof insertScheduleSchema>;
+export type ScheduleAssignment = typeof scheduleAssignments.$inferSelect;
+export type InsertScheduleAssignment = z.infer<typeof insertScheduleAssignmentSchema>;
 export type LoginCredentials = z.infer<typeof loginSchema>;

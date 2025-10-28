@@ -34,11 +34,15 @@ Complete church website with public pages, secure member area, and administrativ
 ```
 
 ## Database Schema
-- **users**: Members and administrators
+- **users**: Members and administrators (with ministerio and isLider fields)
 - **events**: Church events (public)
 - **courses**: Educational courses
 - **lessons**: Course lessons (video-based)
 - **materials**: PDFs and private videos
+- **prayer_requests**: Prayer requests system
+- **schedules**: Monthly schedules (louvor & obreiros)
+- **schedule_assignments**: Assignments of members to positions
+- **notifications**: User notifications (pending implementation)
 
 ## Features
 
@@ -57,13 +61,23 @@ Complete church website with public pages, secure member area, and administrativ
 - PDF materials access
 - Private YouTube videos
 - User profile view
+- Monthly schedules viewer (louvor & obreiros)
 - Sidebar navigation
 
+### Leader Area (/lider)
+- Schedule management (leaders & admins only)
+- Create/edit worship schedules
+- Assign members to positions: Teclado, Violão, Baixo, Bateria, Voz, Backing
+- Create/edit workers schedules
+- Ministry-based member suggestions
+
 ### Admin Panel (/admin)
-- Member management (CRUD, filters, CSV export)
+- Member management (CRUD, filters, CSV export, ministry/leader assignment)
 - Course & lesson management
 - Event management
 - Materials management (PDFs & videos)
+- Prayer request moderation
+- Analytics dashboard with demographics charts
 - Role-based access control
 - Top navigation layout
 
@@ -114,9 +128,14 @@ DELETE /api/admin/materials/:id
 To create the first admin user, insert directly into database or use the create member form with admin checkbox.
 
 ## Recent Changes
+- **Monthly Schedule System**: Complete workflow for worship and workers schedules
+  - Leaders can create and manage schedules
+  - Assign members to specific positions (Teclado, Violão, Baixo, Bateria, Voz, Backing)
+  - Ministry-based suggestions for easier assignment
+  - Members can view their schedules
+- **Prayer Request System**: Public submission, admin moderation, public display
+- **Analytics Dashboard**: Member demographics with age, neighborhood, and profession charts (Recharts)
+- **User Roles**: Added ministerio (ministry) and isLider (leader) fields
 - Complete database schema with relations
-- Full frontend implementation (all pages)
 - Design system configured (blue, gold, white)
-- Generated church images for hero and about sections
 - All components use Shadcn UI patterns
-- Ready for backend integration

@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { users, events, courses, lessons, materials, prayerRequests } from "@shared/schema";
-import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments } from "@shared/schema";
+import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 export interface IStorage {
@@ -52,6 +52,25 @@ export interface IStorage {
     membersByProfession: { profession: string; count: number }[];
     recentMembersCount: number;
   }>;
+  
+  // Schedules
+  getAllSchedules(): Promise<Schedule[]>;
+  getSchedulesByMonth(mes: number, ano: number): Promise<Schedule[]>;
+  getScheduleById(id: number): Promise<Schedule | null>;
+  createSchedule(data: InsertSchedule): Promise<Schedule>;
+  updateSchedule(id: number, data: Partial<InsertSchedule>): Promise<Schedule>;
+  deleteSchedule(id: number): Promise<void>;
+  
+  // Schedule Assignments
+  getAssignmentsBySchedule(scheduleId: number): Promise<ScheduleAssignment[]>;
+  createAssignment(data: InsertScheduleAssignment): Promise<ScheduleAssignment>;
+  updateAssignment(id: number, userId: number | null): Promise<ScheduleAssignment>;
+  deleteAssignment(id: number): Promise<void>;
+  deleteAssignmentsBySchedule(scheduleId: number): Promise<void>;
+  
+  // Members with ministry filter
+  getUsersByMinistry(ministerio: string): Promise<User[]>;
+  updateUserMinistry(id: number, ministerio: string | null, isLider: boolean): Promise<User>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -264,6 +283,79 @@ export class DatabaseStorage implements IStorage {
       membersByProfession,
       recentMembersCount,
     };
+  }
+
+  // Schedules
+  async getAllSchedules(): Promise<Schedule[]> {
+    return await db.select().from(schedules).orderBy(schedules.data);
+  }
+
+  async getSchedulesByMonth(mes: number, ano: number): Promise<Schedule[]> {
+    return await db.select().from(schedules)
+      .where(and(eq(schedules.mes, mes), eq(schedules.ano, ano)))
+      .orderBy(schedules.data);
+  }
+
+  async getScheduleById(id: number): Promise<Schedule | null> {
+    const result = await db.select().from(schedules).where(eq(schedules.id, id)).limit(1);
+    return result[0] || null;
+  }
+
+  async createSchedule(data: InsertSchedule): Promise<Schedule> {
+    const result = await db.insert(schedules).values(data).returning();
+    return result[0];
+  }
+
+  async updateSchedule(id: number, data: Partial<InsertSchedule>): Promise<Schedule> {
+    const result = await db.update(schedules)
+      .set(data)
+      .where(eq(schedules.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteSchedule(id: number): Promise<void> {
+    await db.delete(schedules).where(eq(schedules.id, id));
+  }
+
+  // Schedule Assignments
+  async getAssignmentsBySchedule(scheduleId: number): Promise<ScheduleAssignment[]> {
+    return await db.select().from(scheduleAssignments)
+      .where(eq(scheduleAssignments.scheduleId, scheduleId));
+  }
+
+  async createAssignment(data: InsertScheduleAssignment): Promise<ScheduleAssignment> {
+    const result = await db.insert(scheduleAssignments).values(data).returning();
+    return result[0];
+  }
+
+  async updateAssignment(id: number, userId: number | null): Promise<ScheduleAssignment> {
+    const result = await db.update(scheduleAssignments)
+      .set({ userId })
+      .where(eq(scheduleAssignments.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteAssignment(id: number): Promise<void> {
+    await db.delete(scheduleAssignments).where(eq(scheduleAssignments.id, id));
+  }
+
+  async deleteAssignmentsBySchedule(scheduleId: number): Promise<void> {
+    await db.delete(scheduleAssignments).where(eq(scheduleAssignments.scheduleId, scheduleId));
+  }
+
+  // Members with ministry filter
+  async getUsersByMinistry(ministerio: string): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.ministerio, ministerio));
+  }
+
+  async updateUserMinistry(id: number, ministerio: string | null, isLider: boolean): Promise<User> {
+    const result = await db.update(users)
+      .set({ ministerio, isLider })
+      .where(eq(users.id, id))
+      .returning();
+    return result[0];
   }
 }
 
