@@ -120,8 +120,8 @@ export default function AdminMembers() {
   const filteredMembers = members.filter(member => {
     const matchesSearch = member.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          member.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesBairro = !filterBairro || member.bairro === filterBairro;
-    const matchesProfissao = !filterProfissao || member.profissao === filterProfissao;
+    const matchesBairro = !filterBairro || filterBairro === "_all" || member.bairro === filterBairro;
+    const matchesProfissao = !filterProfissao || filterProfissao === "_all" || member.profissao === filterProfissao;
     return matchesSearch && matchesBairro && matchesProfissao;
   });
 
@@ -293,14 +293,14 @@ export default function AdminMembers() {
 
             <div className="space-y-2">
               <Label htmlFor="bairro">Bairro</Label>
-              <Select value={filterBairro || ""} onValueChange={setFilterBairro}>
+              <Select value={filterBairro || "_all"} onValueChange={setFilterBairro}>
                 <SelectTrigger id="bairro" data-testid="select-neighborhood">
                   <SelectValue placeholder="Todos os bairros" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos os bairros</SelectItem>
+                  <SelectItem value="_all">Todos os bairros</SelectItem>
                   {uniqueBairros.map((bairro) => (
-                    <SelectItem key={bairro} value={bairro || ""}>{bairro}</SelectItem>
+                    <SelectItem key={bairro} value={bairro}>{bairro}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -308,14 +308,14 @@ export default function AdminMembers() {
 
             <div className="space-y-2">
               <Label htmlFor="profissao">Profissão</Label>
-              <Select value={filterProfissao || ""} onValueChange={setFilterProfissao}>
+              <Select value={filterProfissao || "_all"} onValueChange={setFilterProfissao}>
                 <SelectTrigger id="profissao" data-testid="select-profession">
                   <SelectValue placeholder="Todas as profissões" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas as profissões</SelectItem>
+                  <SelectItem value="_all">Todas as profissões</SelectItem>
                   {uniqueProfissoes.map((profissao) => (
-                    <SelectItem key={profissao} value={profissao || ""}>{profissao}</SelectItem>
+                    <SelectItem key={profissao} value={profissao}>{profissao}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
