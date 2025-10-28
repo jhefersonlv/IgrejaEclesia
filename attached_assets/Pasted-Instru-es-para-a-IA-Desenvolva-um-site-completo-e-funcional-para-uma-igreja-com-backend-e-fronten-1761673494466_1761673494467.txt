@@ -1,0 +1,267 @@
+Instruções para a IA:
+Desenvolva um site completo e funcional para uma igreja, com backend e frontend, utilizando Next.js (ou React + Node.js/Express se preferir) com banco de dados SQLite ou PostgreSQL (compatível com Replit).
+Siga cuidadosamente as especificações abaixo.
+
+🏛️ VISÃO GERAL DO PROJETO
+
+O site será o portal oficial da igreja, contendo:
+
+Página pública com informações sobre a igreja, cultos, eventos e contato.
+
+Área restrita (login de membros) com acesso a materiais internos como PDFs e vídeos privados do YouTube.
+
+Sistema administrativo interno (painel admin) onde apenas administradores poderão cadastrar membros, criar cursos e gerenciar conteúdos.
+
+⚙️ ESTRUTURA DO SITE
+1. Página Inicial (/)
+
+Objetivo: Apresentar a igreja e suas atividades.
+Elementos:
+
+Cabeçalho com logo, menu e botão "Área do Membro".
+
+Banner com imagem da igreja e frase de boas-vindas.
+
+Seção “Sobre nós” com texto institucional.
+
+Seção “Dias de Culto” (ex: Quarta - Culto de Ensino, Domingo - Culto da Família).
+
+Seção “Próximos Eventos” com cards de eventos cadastrados no painel admin.
+
+Rodapé com informações de contato (endereço, telefone, links sociais e Google Maps integrado).
+
+2. Área de Login (/login)
+
+Funções:
+
+Login com e-mail e senha.
+
+Apenas membros cadastrados pelo admin podem entrar.
+
+Redirecionamento automático para a “Área do Membro” após login bem-sucedido.
+
+Senhas criptografadas no banco de dados (bcrypt).
+
+Sessão persistente (cookies/JWT).
+
+3. Área do Membro (/membro)
+
+Acesso restrito: somente usuários logados.
+Elementos e funcionalidades:
+
+Dashboard com boas-vindas e resumo dos cursos e conteúdos disponíveis.
+
+Acesso às apostilas em PDF (armazenadas localmente ou via link privado).
+
+Lista de vídeos privados do YouTube (embedados, mas com acesso apenas dentro do sistema).
+
+Menu lateral com:
+
+📘 Apostilas
+
+🎥 Vídeos
+
+🎓 Cursos
+
+👤 Perfil do membro (dados cadastrais visíveis, mas não editáveis)
+
+🚪 Sair
+
+4. Área de Cursos (/cursos)
+
+Objetivo: Acompanhar os cursos ministrados pela igreja.
+Funcionalidades:
+
+Lista de cursos disponíveis.
+
+Cada curso possui:
+
+Nome
+
+Descrição
+
+Módulos e aulas (cada aula contém um vídeo do YouTube e descrição)
+
+O administrador pode criar novos cursos e módulos via painel admin.
+
+Exemplo de estrutura:
+
+Curso: Discipulado 1
+  → Aula 1 - Introdução (link do YouTube)
+  → Aula 2 - Fé e Arrependimento (link do YouTube)
+
+5. Painel Administrativo (/admin)
+
+Acesso restrito aos usuários com permissão ADMIN.
+Funcionalidades:
+
+👥 Gerenciar Membros
+
+Criar novos cadastros (nome, e-mail, senha, data de nascimento, profissão, endereço, bairro, cidade, etc.)
+
+Visualizar lista de membros (com filtros: faixa etária, bairro, profissão).
+
+Exportar dados em CSV.
+
+🎓 Gerenciar Cursos
+
+Criar, editar e excluir cursos e aulas.
+
+Inserir vídeos via link do YouTube.
+
+Anexar PDFs aos módulos.
+
+📅 Gerenciar Eventos
+
+Criar e editar eventos com título, data, local, descrição e imagem.
+
+Exibir automaticamente na página inicial.
+
+📁 Gerenciar Conteúdos
+
+Upload de apostilas (PDFs)
+
+Inserção de vídeos privados
+
+🔒 Gerenciar Permissões
+
+Promover membro a administrador
+
+Bloquear acesso
+
+🗄️ BANCO DE DADOS (Modelo Relacional)
+
+Tabelas sugeridas:
+
+usuarios (
+  id SERIAL PRIMARY KEY,
+  nome TEXT,
+  email TEXT UNIQUE,
+  senha TEXT,
+  data_nascimento DATE,
+  profissao TEXT,
+  cidade TEXT,
+  bairro TEXT,
+  is_admin BOOLEAN DEFAULT false
+)
+
+eventos (
+  id SERIAL PRIMARY KEY,
+  titulo TEXT,
+  descricao TEXT,
+  data DATE,
+  local TEXT,
+  imagem TEXT
+)
+
+cursos (
+  id SERIAL PRIMARY KEY,
+  nome TEXT,
+  descricao TEXT
+)
+
+aulas (
+  id SERIAL PRIMARY KEY,
+  curso_id INTEGER REFERENCES cursos(id),
+  titulo TEXT,
+  video_url TEXT,
+  descricao TEXT
+)
+
+apostilas (
+  id SERIAL PRIMARY KEY,
+  titulo TEXT,
+  arquivo_url TEXT
+)
+
+🔐 AUTENTICAÇÃO E SEGURANÇA
+
+Login JWT com refresh token ou cookies de sessão.
+
+Criptografia de senhas com bcrypt.
+
+Middleware de proteção de rotas (somente usuários logados podem acessar /membro e /cursos; somente admin pode acessar /admin).
+
+Rate limit e CORS configurados.
+
+Logout limpo (invalidate session).
+
+🧰 TECNOLOGIAS RECOMENDADAS (compatíveis com Replit)
+
+Frontend:
+
+React ou Next.js
+
+TailwindCSS (design moderno e responsivo)
+
+Axios (requisições API)
+
+Backend:
+
+Node.js + Express
+
+JWT + bcrypt
+
+Banco: SQLite (mais simples no Replit) ou PostgreSQL
+
+ORM: Prisma ou Sequelize
+
+📦 ESTRUTURA DE PASTAS SUGERIDA
+/src
+  /frontend
+    /components
+    /pages
+    /styles
+  /backend
+    /routes
+    /controllers
+    /models
+    /middlewares
+  /public
+    /uploads (apostilas)
+.env
+package.json
+
+🎨 DESIGN
+
+Tema moderno, leve e responsivo.
+
+Paleta: tons de azul, dourado e branco.
+
+Ícones: Lucide ou FontAwesome.
+
+Fonte sugerida: Poppins ou Inter.
+
+🧩 FUNCIONALIDADES ADICIONAIS (opcionais, se possível incluir)
+
+Página “Pedidos de Oração” com formulário (enviado por e-mail ou salvo no banco).
+
+Sistema de notificações internas (ex: “Nova aula disponível”).
+
+Dashboard analítico no admin com:
+
+Total de membros
+
+Faixa etária média
+
+Distribuição por bairro/profissão (gráficos simples com Chart.js).
+
+Dark Mode.
+
+SEO básico e meta tags automáticas.
+
+🚀 OBJETIVO FINAL
+
+Entregar um site totalmente funcional, rodando no Replit, com:
+
+Frontend e backend integrados.
+
+Autenticação segura.
+
+Painel de administração.
+
+Área de membros com cursos, vídeos e PDFs privados.
+
+Banco de dados persistente.
+
+Interface responsiva e bonita.
