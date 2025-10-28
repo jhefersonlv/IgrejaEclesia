@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
-import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema } from "@shared/schema";
+import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema, insertQuestionSchema } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
@@ -539,6 +539,148 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error("Update user ministry error:", error);
       res.status(500).json({ message: "Erro ao atualizar ministério" });
+    }
+  });
+
+  // ========== QUIZ ROUTES ==========
+  
+  // Get questions for a lesson (authenticated)
+  app.get("/api/lessons/:id/questions", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const lessonId = parseInt(req.params.id);
+      const questions = await storage.getQuestionsByLessonId(lessonId);
+      res.json(questions);
+    } catch (error) {
+      console.error("Get questions error:", error);
+      res.status(500).json({ message: "Erro ao buscar perguntas" });
+    }
+  });
+
+  // Create questions for a lesson (admin only)
+  app.post("/api/admin/lessons/:id/questions", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const lessonId = parseInt(req.params.id);
+      const { questions: questionsData } = req.body;
+
+      if (!Array.isArray(questionsData) || questionsData.length !== 3) {
+        return res.status(400).json({ message: "São necessárias exatamente 3 perguntas" });
+      }
+
+      // Validate ALL questions first before making any changes
+      const validatedQuestions = [];
+      for (let i = 0; i < questionsData.length; i++) {
+        const questionData = insertQuestionSchema.parse({
+          ...questionsData[i],
+          lessonId,
+          ordem: i + 1,
+        });
+        validatedQuestions.push(questionData);
+      }
+
+      // Only after ALL validations pass, delete existing and insert new ones
+      await storage.deleteQuestionsByLessonId(lessonId);
+
+      const createdQuestions = [];
+      for (const questionData of validatedQuestions) {
+        const question = await storage.createQuestion(questionData);
+        createdQuestions.push(question);
+      }
+
+      res.status(201).json(createdQuestions);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      console.error("Create questions error:", error);
+      res.status(500).json({ message: "Erro ao criar perguntas" });
+    }
+  });
+
+  // Submit quiz answers and complete lesson (members)
+  app.post("/api/lessons/:id/complete", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const lessonId = parseInt(req.params.id);
+      const userId = (req as any).userId;
+      const { respostas } = req.body; // Array of answers: ['A', 'B', 'C']
+
+      if (!Array.isArray(respostas) || respostas.length !== 3) {
+        return res.status(400).json({ message: "São necessárias 3 respostas" });
+      }
+
+      // Get questions for this lesson
+      const questions = await storage.getQuestionsByLessonId(lessonId);
+      
+      if (questions.length !== 3) {
+        return res.status(400).json({ message: "Este vídeo ainda não possui quiz configurado" });
+      }
+
+      // Calculate score
+      let score = 0;
+      for (let i = 0; i < 3; i++) {
+        if (respostas[i] === questions[i].respostaCorreta) {
+          score++;
+        }
+      }
+
+      const completed = score === 3; // Must get all correct to complete
+
+      // Save completion
+      const completion = await storage.createOrUpdateLessonCompletion(
+        userId,
+        lessonId,
+        score,
+        completed
+      );
+
+      res.json({
+        score,
+        completed,
+        totalQuestions: 3,
+        message: completed 
+          ? "Parabéns! Você completou esta lição." 
+          : `Você acertou ${score} de 3 perguntas. Tente novamente para completar.`,
+      });
+    } catch (error) {
+      console.error("Complete lesson error:", error);
+      res.status(500).json({ message: "Erro ao processar respostas" });
+    }
+  });
+
+  // Get course progress for current user
+  app.get("/api/courses/:id/progress", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const courseId = parseInt(req.params.id);
+      const userId = (req as any).userId;
+      const progress = await storage.getCourseProgress(userId, courseId);
+      res.json(progress);
+    } catch (error) {
+      console.error("Get course progress error:", error);
+      res.status(500).json({ message: "Erro ao buscar progresso" });
+    }
+  });
+
+  // Get lesson completion status for user
+  app.get("/api/lessons/:id/completion", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const lessonId = parseInt(req.params.id);
+      const userId = (req as any).userId;
+      const completion = await storage.getLessonCompletion(userId, lessonId);
+      res.json(completion || { completed: false, score: 0 });
+    } catch (error) {
+      console.error("Get lesson completion error:", error);
+      res.status(500).json({ message: "Erro ao buscar conclusão" });
+    }
+  });
+
+  // Get all users progress for a course (admin only)
+  app.get("/api/admin/courses/:id/progress", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const courseId = parseInt(req.params.id);
+      const allProgress = await storage.getAllUsersProgress(courseId);
+      res.json(allProgress);
+    } catch (error) {
+      console.error("Get all users progress error:", error);
+      res.status(500).json({ message: "Erro ao buscar progresso dos usuários" });
     }
   });
 }
