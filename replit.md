@@ -38,6 +38,8 @@ Complete church website with public pages, secure member area, and administrativ
 - **events**: Church events (public)
 - **courses**: Educational courses
 - **lessons**: Course lessons (video-based)
+- **questions**: Quiz questions for lessons (3 per lesson with multiple choice)
+- **lesson_completions**: Tracks lesson completions and quiz scores
 - **materials**: PDFs and private videos
 - **prayer_requests**: Prayer requests system
 - **schedules**: Monthly schedules (louvor & obreiros)
@@ -57,7 +59,12 @@ Complete church website with public pages, secure member area, and administrativ
 ### Member Area (/membro)
 - Protected routes (JWT authentication)
 - Dashboard with stats
-- Courses with video lessons
+- **Courses with quiz system**
+  - Video lessons with YouTube embed
+  - 3-question quiz per lesson (multiple choice)
+  - Must answer all correctly to complete lesson
+  - Retry mechanism for incorrect answers
+  - Completion tracking with trophy badge
 - PDF materials access
 - Private YouTube videos
 - User profile view
@@ -80,11 +87,19 @@ Complete church website with public pages, secure member area, and administrativ
   - Toggle admin permissions
   - Filters by neighborhood and profession
   - CSV export functionality
-- Course & lesson management
+- **Course & lesson management with quiz system**
+  - Create/edit courses and lessons
+  - Quiz editor: 3 questions per lesson with A/B/C options
+  - Correct answer selection per question
+  - Visual indicators for quiz configuration status
 - Event management
 - Materials management (PDFs & videos)
 - Prayer request moderation
-- Analytics dashboard with demographics charts
+- **Analytics dashboard**
+  - Demographics charts (age, neighborhood, profession)
+  - Course completion metrics (total lessons, completions, rates)
+  - Per-course statistics with progress bars
+  - Students started vs completed tracking
 - Role-based access control
 - Top navigation layout
 
@@ -123,6 +138,11 @@ POST   /api/admin/events
 DELETE /api/admin/events/:id
 POST   /api/admin/materials
 DELETE /api/admin/materials/:id
+GET    /api/lessons/:id/questions          # Get quiz questions for a lesson
+POST   /api/admin/lessons/:id/questions    # Create/update quiz (3 questions)
+POST   /api/lessons/:id/complete           # Submit quiz answers
+GET    /api/lessons/:id/completion         # Get lesson completion status
+GET    /api/admin/analytics/courses        # Course completion analytics
 ```
 
 ## Development Notes
@@ -136,6 +156,17 @@ DELETE /api/admin/materials/:id
 To create the first admin user, insert directly into database or use the create member form with admin checkbox.
 
 ## Recent Changes
+- **Quiz System** (October 2024): Complete quiz system for lesson validation
+  - Database schema with questions and lesson_completions tables
+  - Admin interface for managing 3 questions per lesson
+  - Member interface with answer validation and retry mechanism
+  - Quiz must be completed (all correct) to mark lesson as done
+  - Optimized analytics with O(n) performance for course progress tracking
+- **Course Analytics Dashboard** (October 2024): Comprehensive analytics on admin dashboard
+  - Total lessons and completions metrics
+  - Average completion rate across all courses
+  - Per-course statistics with progress visualization
+  - Students started vs completed tracking
 - **Member Editing Feature** (December 2024): Admins can now fully edit member information
   - Edit dialog with all user fields (name, email, password, birthdate, profession, address, etc.)
   - Optional password update - empty password field preserves existing password
