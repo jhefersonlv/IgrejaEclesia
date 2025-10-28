@@ -73,6 +73,17 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  app.get("/api/auth/me", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { senha, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Get current user error:", error);
+      res.status(500).json({ message: "Erro ao buscar usuário" });
+    }
+  });
+
   // Public Routes
   app.get("/api/events/public", async (req: Request, res: Response) => {
     try {

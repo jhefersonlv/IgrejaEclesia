@@ -36,7 +36,11 @@ export function MemberLayout({ children }: MemberLayoutProps) {
   return (
     <SidebarProvider style={style as React.CSSProperties}>
       <div className="flex h-screen w-full">
-        <AppSidebar userNome={user.nome} isLider={user.isLider} />
+        <AppSidebar 
+          userNome={user.nome} 
+          isLider={user.isLider} 
+          isAdmin={user.isAdmin}
+        />
         <div className="flex flex-col flex-1 overflow-hidden">
           <header className="flex items-center justify-between p-4 border-b">
             <SidebarTrigger data-testid="button-sidebar-toggle" />

@@ -35,11 +35,8 @@ export default function Login() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       
-      if (data.user.isAdmin) {
-        setLocation("/admin");
-      } else {
-        setLocation("/membro");
-      }
+      // Todos os usuários (incluindo admins) vão para /membro
+      setLocation("/membro");
       
       toast({
         title: "Login realizado com sucesso!",

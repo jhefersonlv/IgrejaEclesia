@@ -9,17 +9,19 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { BookOpen, Video, GraduationCap, User, LogOut, Church, CalendarDays, Heart } from "lucide-react";
+import { BookOpen, Video, GraduationCap, User, LogOut, Church, CalendarDays, Heart, Shield } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 
 interface AppSidebarProps {
   userNome?: string;
   isLider?: boolean;
+  isAdmin?: boolean;
 }
 
-export function AppSidebar({ userNome, isLider }: AppSidebarProps) {
+export function AppSidebar({ userNome, isLider, isAdmin }: AppSidebarProps) {
   const [location, setLocation] = useLocation();
 
   const items = [
@@ -102,6 +104,29 @@ export function AppSidebar({ userNome, isLider }: AppSidebarProps) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {isAdmin && (
+          <>
+            <SidebarSeparator />
+            <SidebarGroup>
+              <SidebarGroupLabel>Administração</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      onClick={() => setLocation("/admin")}
+                      isActive={location.startsWith("/admin")}
+                      data-testid="link-admin"
+                    >
+                      <Shield className="w-4 h-4" />
+                      <span>Painel Admin</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t">
