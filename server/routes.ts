@@ -1,11 +1,15 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
-import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema, insertQuestionSchema } from "@shared/schema";
+import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema, insertQuestionSchema, User } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 
 const JWT_SECRET = process.env.SESSION_SECRET || "your-secret-key-change-in-production";
+
+interface AuthRequest extends Request {
+  user?: User;
+}
 
 // Middleware to verify JWT token
 async function authenticateToken(req: Request, res: Response, next: NextFunction) {
@@ -538,30 +542,6 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Get users by ministry (for suggestions)
-  app.get("/api/users/ministry/:ministerio", authenticateToken, async (req: Request, res: Response) => {
-    try {
-      const ministerio = req.params.ministerio;
-      const users = await storage.getUsersByMinistry(ministerio);
-      res.json(users);
-    } catch (error) {
-      console.error("Get users by ministry error:", error);
-      res.status(500).json({ message: "Erro ao buscar membros" });
-    }
-  });
-
-  // Update user ministry (admin only)
-  app.patch("/api/admin/members/:id/ministry", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const { ministerio, isLider } = req.body;
-      const updatedUser = await storage.updateUserMinistry(id, ministerio, isLider);
-      res.json(updatedUser);
-    } catch (error) {
-      console.error("Update user ministry error:", error);
-      res.status(500).json({ message: "Erro ao atualizar ministério" });
-    }
-  });
 
   // ========== QUIZ ROUTES ==========
   

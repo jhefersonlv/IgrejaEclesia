@@ -143,77 +143,94 @@ export const lessonsRelations = relations(lessons, ({ one }) => ({
 }));
 
 // Insert schemas
-export const insertUserSchema = createInsertSchema(users, {
+export const insertUserSchema = z.object({
+  nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
   email: z.string().email("Email inválido"),
   senha: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
-  nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
-}).omit({
-  id: true,
-  createdAt: true,
+  dataNascimento: z.string().optional(),
+  profissao: z.string().optional(),
+  endereco: z.string().optional(),
+  bairro: z.string().optional(),
+  cidade: z.string().optional(),
+  ministerioLouvor: z.boolean().optional(),
+  ministerioObreiro: z.boolean().optional(),
+  isAdmin: z.boolean().optional(),
+  isLider: z.boolean().optional(),
 });
 
-export const insertEventSchema = createInsertSchema(events).omit({
-  id: true,
-  createdAt: true,
+export const insertEventSchema = z.object({
+  titulo: z.string(),
+  descricao: z.string(),
+  data: z.string(),
+  local: z.string(),
+  imagem: z.string().optional(),
 });
 
-export const insertCourseSchema = createInsertSchema(courses).omit({
-  id: true,
-  createdAt: true,
+export const insertCourseSchema = z.object({
+  nome: z.string(),
+  descricao: z.string(),
+  imagem: z.string().optional(),
 });
 
-export const insertLessonSchema = createInsertSchema(lessons).omit({
-  id: true,
-  createdAt: true,
+export const insertLessonSchema = z.object({
+  cursoId: z.number(),
+  titulo: z.string(),
+  descricao: z.string(),
+  videoUrl: z.string(),
+  ordem: z.number().optional(),
 });
 
-export const insertMaterialSchema = createInsertSchema(materials).omit({
-  id: true,
-  createdAt: true,
+export const insertMaterialSchema = z.object({
+  titulo: z.string(),
+  descricao: z.string().optional(),
+  arquivoUrl: z.string(),
+  tipo: z.string().optional(),
 });
 
-export const insertPrayerRequestSchema = createInsertSchema(prayerRequests, {
+export const insertPrayerRequestSchema = z.object({
   nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
   pedido: z.string().min(10, "Pedido deve ter no mínimo 10 caracteres"),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
-}).omit({
-  id: true,
-  createdAt: true,
-  status: true,
-  isPublic: true,
 });
 
-export const insertNotificationSchema = createInsertSchema(notifications).omit({
-  id: true,
-  createdAt: true,
-  isRead: true,
+export const insertNotificationSchema = z.object({
+  userId: z.number().optional(),
+  titulo: z.string(),
+  mensagem: z.string(),
+  tipo: z.string(),
+  link: z.string().optional(),
 });
 
-export const insertScheduleSchema = createInsertSchema(schedules).omit({
-  id: true,
-  createdAt: true,
+export const insertScheduleSchema = z.object({
+  mes: z.number(),
+  ano: z.number(),
+  tipo: z.string(),
+  data: z.string(),
+  observacoes: z.string().optional(),
 });
 
-export const insertScheduleAssignmentSchema = createInsertSchema(scheduleAssignments).omit({
-  id: true,
-  createdAt: true,
+export const insertScheduleAssignmentSchema = z.object({
+  scheduleId: z.number(),
+  userId: z.number().optional(),
+  posicao: z.string(),
 });
 
-export const insertQuestionSchema = createInsertSchema(questions, {
+export const insertQuestionSchema = z.object({
+  lessonId: z.number(),
   pergunta: z.string().min(10, "Pergunta deve ter no mínimo 10 caracteres"),
   opcaoA: z.string().min(1, "Opção A é obrigatória"),
   opcaoB: z.string().min(1, "Opção B é obrigatória"),
   opcaoC: z.string().min(1, "Opção C é obrigatória"),
   respostaCorreta: z.enum(["A", "B", "C"], { message: "Resposta correta deve ser A, B ou C" }),
-}).omit({
-  id: true,
-  createdAt: true,
+  ordem: z.number().optional(),
 });
 
-export const insertLessonCompletionSchema = createInsertSchema(lessonCompletions).omit({
-  id: true,
-  createdAt: true,
-  completedAt: true,
+export const insertLessonCompletionSchema = z.object({
+  userId: z.number(),
+  lessonId: z.number(),
+  completed: z.boolean(),
+  score: z.number(),
+  tentativas: z.number(),
 });
 
 // Login schema

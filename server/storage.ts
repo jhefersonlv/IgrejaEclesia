@@ -69,10 +69,6 @@ export interface IStorage {
   deleteAssignment(id: number): Promise<void>;
   deleteAssignmentsBySchedule(scheduleId: number): Promise<void>;
   
-  // Members with ministry filter
-  getUsersByMinistry(ministerio: string): Promise<User[]>;
-  updateUserMinistry(id: number, ministerio: string | null, isLider: boolean): Promise<User>;
-  
   // Questions
   getQuestionsByLessonId(lessonId: number): Promise<Question[]>;
   createQuestion(data: InsertQuestion): Promise<Question>;
@@ -369,11 +365,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAssignment(data: InsertScheduleAssignment): Promise<ScheduleAssignment> {
+    if (data.userId) {
+      const user = await this.getUserById(data.userId);
+      const schedule = await this.getScheduleById(data.scheduleId);
+      if (!user || !schedule) throw new Error("Usuário ou escala não encontrados.");
+
+      if (schedule.tipo === "louvor" && !user.ministerioLouvor) {
+        throw new Error("Usuário não pertence ao ministério de louvor.");
+      }
+      if (schedule.tipo === "obreiros" && !user.ministerioObreiro) {
+        throw new Error("Usuário não pertence ao ministério de obreiros.");
+      }
+    }
     const result = await db.insert(scheduleAssignments).values(data).returning();
     return result[0];
   }
 
   async updateAssignment(id: number, userId: number | null): Promise<ScheduleAssignment> {
+    const assignment = (await db.select().from(scheduleAssignments).where(eq(scheduleAssignments.id, id)).limit(1))[0];
+    if (!assignment) throw new Error("Atribuição não encontrada.");
+
+    if (userId) {
+      const user = await this.getUserById(userId);
+      const schedule = await this.getScheduleById(assignment.scheduleId);
+      if (!user || !schedule) throw new Error("Usuário ou escala não encontrados.");
+
+      if (schedule.tipo === "louvor" && !user.ministerioLouvor) {
+        throw new Error("Usuário não pertence ao ministério de louvor.");
+      }
+      if (schedule.tipo === "obreiros" && !user.ministerioObreiro) {
+        throw new Error("Usuário não pertence ao ministério de obreiros.");
+      }
+    }
     const result = await db.update(scheduleAssignments)
       .set({ userId })
       .where(eq(scheduleAssignments.id, id))
@@ -387,19 +410,6 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAssignmentsBySchedule(scheduleId: number): Promise<void> {
     await db.delete(scheduleAssignments).where(eq(scheduleAssignments.scheduleId, scheduleId));
-  }
-
-  // Members with ministry filter
-  async getUsersByMinistry(ministerio: string): Promise<User[]> {
-    return await db.select().from(users).where(eq(users.ministerio, ministerio));
-  }
-
-  async updateUserMinistry(id: number, ministerio: string | null, isLider: boolean): Promise<User> {
-    const result = await db.update(users)
-      .set({ ministerio, isLider })
-      .where(eq(users.id, id))
-      .returning();
-    return result[0];
   }
 
   // Questions
@@ -534,11 +544,11 @@ export class DatabaseStorage implements IStorage {
     const lessonToCourse = new Map<number, number>();
     
     allLessons.forEach(lesson => {
-      if (!lessonsByCourse.has(lesson.courseId)) {
-        lessonsByCourse.set(lesson.courseId, []);
+      if (!lessonsByCourse.has(lesson.cursoId)) {
+        lessonsByCourse.set(lesson.cursoId, []);
       }
-      lessonsByCourse.get(lesson.courseId)!.push(lesson);
-      lessonToCourse.set(lesson.id, lesson.courseId);
+      lessonsByCourse.get(lesson.cursoId)!.push(lesson);
+      lessonToCourse.set(lesson.id, lesson.cursoId);
     });
     
     // Group completions by course ID in ONE pass (O(n) instead of O(n*m))

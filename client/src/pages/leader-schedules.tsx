@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, Trash2, Save } from "lucide-react";
+import { Plus, Calendar, Trash2, Save, Pencil } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -156,6 +156,54 @@ export default function LeaderSchedulesPage() {
     },
   });
 
+  const updateScheduleMutation = useMutation({
+    mutationFn: async (data: ScheduleFormData) => {
+      if (!editingSchedule) return;
+      const schedule = await apiRequest<Schedule>("PATCH", `/api/schedules/${editingSchedule}`, data);
+
+      // Update assignments
+      const existingAssignments = schedulesWithAssignments.find(s => s.id === editingSchedule)?.assignments || [];
+      const positions = data.tipo === "louvor" ? POSICOES_LOUVOR : existingAssignments.map((_, i) => `obreiro-${i}`);
+
+      for (const posicao of positions) {
+        const existingAssignment = existingAssignments.find(a => a.posicao === posicao);
+        const newUserId = assignments[posicao];
+
+        if (existingAssignment) {
+          if (existingAssignment.userId !== newUserId) {
+            await apiRequest("PATCH", `/api/assignments/${existingAssignment.id}`, { userId: newUserId });
+          }
+        } else if (newUserId) {
+          await apiRequest("POST", "/api/assignments", {
+            scheduleId: editingSchedule,
+            userId: newUserId,
+            posicao,
+          });
+        }
+      }
+
+      return schedule;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/schedules"] });
+      setIsDialogOpen(false);
+      setEditingSchedule(null);
+      setAssignments({});
+      form.reset();
+      toast({
+        title: "Escala atualizada!",
+        description: "A escala foi atualizada com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao atualizar escala",
+        description: error.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const deleteScheduleMutation = useMutation({
     mutationFn: async (id: number) => {
       return await apiRequest("DELETE", `/api/schedules/${id}`);
@@ -171,6 +219,10 @@ export default function LeaderSchedulesPage() {
 
   const onSubmit = (data: ScheduleFormData) => {
     createScheduleMutation.mutate(data);
+  };
+
+  const onUpdate = (data: ScheduleFormData) => {
+    updateScheduleMutation.mutate(data);
   };
 
   const louvorSchedules = schedulesWithAssignments.filter(s => s.tipo === "louvor");
@@ -195,13 +247,13 @@ export default function LeaderSchedulesPage() {
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Criar Nova Escala</DialogTitle>
+              <DialogTitle>{editingSchedule ? "Editar Escala" : "Criar Nova Escala"}</DialogTitle>
               <DialogDescription>
-                Preencha os dados da escala e atribua membros às posições
+                {editingSchedule ? "Atualize os dados da escala." : "Preencha os dados da escala e atribua membros às posições"}
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(editingSchedule ? onUpdate : onSubmit)} className="space-y-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="tipo">Tipo de Escala</Label>
@@ -258,7 +310,7 @@ export default function LeaderSchedulesPage() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="vazio">Vazio</SelectItem>
-                              {louvorMembers.map(user => (
+                              {allUsers.filter(u => u.ministerioLouvor).map(user => (
                                 <SelectItem key={user.id} value={user.id.toString()}>
                                   {user.nome}
                                 </SelectItem>
@@ -287,7 +339,7 @@ export default function LeaderSchedulesPage() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="vazio">Vazio</SelectItem>
-                              {obreirosMembers.map(user => (
+                              {allUsers.filter(u => u.ministerioObreiro).map(user => (
                                 <SelectItem key={user.id} value={user.id.toString()}>
                                   {user.nome}
                                 </SelectItem>
@@ -345,14 +397,34 @@ export default function LeaderSchedulesPage() {
                             <CardDescription>{schedule.observacoes}</CardDescription>
                           )}
                         </div>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => deleteScheduleMutation.mutate(schedule.id)}
-                          data-testid={`button-delete-${schedule.id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingSchedule(schedule.id);
+                              form.reset({
+                                mes: schedule.mes,
+                                ano: schedule.ano,
+                                tipo: schedule.tipo as "louvor" | "obreiros",
+                                data: schedule.data.split('T')[0],
+                                observacoes: schedule.observacoes || "",
+                              });
+                              setAssignments(schedule.assignments.reduce((acc, a) => ({ ...acc, [a.posicao]: a.userId }), {}));
+                              setIsDialogOpen(true);
+                            }}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => deleteScheduleMutation.mutate(schedule.id)}
+                            data-testid={`button-delete-${schedule.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -404,14 +476,34 @@ export default function LeaderSchedulesPage() {
                             <CardDescription>{schedule.observacoes}</CardDescription>
                           )}
                         </div>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => deleteScheduleMutation.mutate(schedule.id)}
-                          data-testid={`button-delete-${schedule.id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingSchedule(schedule.id);
+                              form.reset({
+                                mes: schedule.mes,
+                                ano: schedule.ano,
+                                tipo: schedule.tipo as "louvor" | "obreiros",
+                                data: schedule.data.split('T')[0],
+                                observacoes: schedule.observacoes || "",
+                              });
+                              setAssignments(schedule.assignments.reduce((acc, a, i) => ({ ...acc, [`obreiro-${i}`]: a.userId }), {}));
+                              setIsDialogOpen(true);
+                            }}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => deleteScheduleMutation.mutate(schedule.id)}
+                            data-testid={`button-delete-${schedule.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent>
