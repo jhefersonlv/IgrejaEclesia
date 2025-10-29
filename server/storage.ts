@@ -106,6 +106,7 @@ export interface IStorage {
   enrollUserInCourse(userId: number, courseId: number): Promise<CourseEnrollment>;
   unenrollUserFromCourse(userId: number, courseId: number): Promise<void>;
   getEnrolledUsers(courseId: number): Promise<User[]>;
+  getEnrolledCourses(userId: number): Promise<Course[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -642,6 +643,15 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(users, eq(courseEnrollments.userId, users.id));
 
     return enrollments.map(e => e.users).filter((u): u is User => u !== null);
+  }
+
+  async getEnrolledCourses(userId: number): Promise<Course[]> {
+    const enrollments = await db.select({ course: courses })
+      .from(courseEnrollments)
+      .where(eq(courseEnrollments.userId, userId))
+      .leftJoin(courses, eq(courseEnrollments.courseId, courses.id));
+
+    return enrollments.map(e => e.course).filter((c): c is Course => c !== null);
   }
 }
 

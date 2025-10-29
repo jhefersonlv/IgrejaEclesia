@@ -98,7 +98,8 @@ export function registerRoutes(app: Express) {
   // Member Routes (Authenticated)
   app.get("/api/courses", authenticateToken, async (req: Request, res: Response) => {
     try {
-      const courses = await storage.getAllCourses();
+      const userId = (req as any).userId;
+      const courses = await storage.getEnrolledCourses(userId);
       res.json(courses);
     } catch (error) {
       console.error("Get courses error:", error);
