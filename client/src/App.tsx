@@ -87,12 +87,14 @@ function Router() {
           <AdminMembers />
         </AdminLayout>
       </Route>
-      <Route path="/admin/courses" nest>
+      <Route path="/admin/courses">
         <AdminLayout>
-          <Switch>
-            <Route path="/" component={AdminCourses} />
-            <Route path="/:id" component={AdminCourseDetails} />
-          </Switch>
+          <AdminCourses />
+        </AdminLayout>
+      </Route>
+      <Route path="/admin/course-details/:id">
+        <AdminLayout>
+          <AdminCourseDetails />
         </AdminLayout>
       </Route>
       <Route path="/admin/events">

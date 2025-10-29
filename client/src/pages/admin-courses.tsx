@@ -190,7 +190,7 @@ export default function AdminCourses() {
               <CardContent className="space-y-3">
                 <p className="text-foreground/70 line-clamp-2">{course.descricao}</p>
                 <div className="flex gap-2">
-                  <Link href={`/admin/courses/${course.id}`} className="flex-1">
+                  <Link href={`/admin/course-details/${course.id}`} className="flex-1">
                     <Button
                       variant="outline"
                       className="w-full"

@@ -33,8 +33,7 @@ export default function AdminCourseDetailsPage() {
 
   const { data: course, isLoading: courseLoading } = useQuery<Course>({
     queryKey: ["/api/courses", courseId],
-    // This assumes you have an endpoint to get a single course by ID
-    // If not, you might need to fetch all and filter, or add the endpoint
+    queryFn: async () => apiRequest("GET", `/api/courses/${courseId}`),
   });
 
   const { data: allUsers = [], isLoading: usersLoading } = useQuery<User[]>({
