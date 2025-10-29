@@ -31,7 +31,7 @@ export default function MemberCourses() {
   const { toast } = useToast();
 
   const { data: courses = [], isLoading } = useQuery<Course[]>({
-    queryKey: ["/api/my-courses"],
+    queryKey: ["/api/courses"],
   });
 
   const { data: courseLessons = [] } = useQuery<Lesson[]>({
