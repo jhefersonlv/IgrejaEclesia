@@ -33,7 +33,7 @@ export default function MemberSchedulesPage() {
   // Hook unificado para buscar escalas já com assignments e users
   const { data: schedulesWithAssignments = [], isPending: isPendingSchedules } =
     useQuery<ScheduleWithAssignments[]>({
-      queryKey: ["/api/schedules", selectedMonth, selectedYear],
+      queryKey: [`/api/schedules?month=${selectedMonth}&year=${selectedYear}`],
     });
 
   // Filtros de ministério

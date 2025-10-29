@@ -62,7 +62,7 @@ export default function LeaderSchedulesPage() {
 
   // Hook para buscar todas as escalas com suas atribuições
   const { data: schedules = [], isLoading } = useQuery<ScheduleWithAssignments[]>({
-    queryKey: ["/api/schedules", selectedMonth, selectedYear],
+    queryKey: [`/api/schedules?month=${selectedMonth}&year=${selectedYear}`],
     // A função da query agora é gerenciada pelo queryClient, então não precisamos defini-la aqui
   });
 
@@ -117,7 +117,7 @@ export default function LeaderSchedulesPage() {
       return schedule;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/schedules", selectedMonth, selectedYear] });
+      queryClient.invalidateQueries({ queryKey: [`/api/schedules?month=${selectedMonth}&year=${selectedYear}`] });
       setIsDialogOpen(false);
       setAssignments({});
       form.reset();
@@ -168,7 +168,7 @@ export default function LeaderSchedulesPage() {
       return schedule;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/schedules", selectedMonth, selectedYear] });
+      queryClient.invalidateQueries({ queryKey: [`/api/schedules?month=${selectedMonth}&year=${selectedYear}`] });
       setIsDialogOpen(false);
       setEditingSchedule(null);
       setAssignments({});
@@ -190,7 +190,7 @@ export default function LeaderSchedulesPage() {
   const deleteScheduleMutation = useMutation({
     mutationFn: async (id: number) => apiRequest("DELETE", `/api/schedules/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/schedules", selectedMonth, selectedYear] });
+      queryClient.invalidateQueries({ queryKey: [`/api/schedules?month=${selectedMonth}&year=${selectedYear}`] });
       toast({
         title: "Escala removida",
         description: "A escala foi removida com sucesso.",
