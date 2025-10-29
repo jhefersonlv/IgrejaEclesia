@@ -19,8 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GraduationCap, Plus, Trash2, Edit, PlayCircle, FileQuestion } from "lucide-react";
+import { GraduationCap, Plus, Trash2, Edit, PlayCircle, FileQuestion, ChevronRight } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { Link } from "wouter";
 import type { Course, InsertCourse, Lesson, InsertLesson, Question } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,28 +31,10 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function AdminCourses() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [isLessonDialogOpen, setIsLessonDialogOpen] = useState(false);
-  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [questions, setQuestions] = useState([
-    { pergunta: "", opcaoA: "", opcaoB: "", opcaoC: "", respostaCorreta: "A" },
-    { pergunta: "", opcaoA: "", opcaoB: "", opcaoC: "", respostaCorreta: "A" },
-    { pergunta: "", opcaoA: "", opcaoB: "", opcaoC: "", respostaCorreta: "A" },
-  ]);
   const { toast } = useToast();
 
   const { data: courses = [], isLoading } = useQuery<Course[]>({
     queryKey: ["/api/courses"],
-  });
-
-  const { data: courseLessons = [] } = useQuery<Lesson[]>({
-    queryKey: ["/api/courses", selectedCourse?.id, "lessons"],
-    enabled: !!selectedCourse,
-  });
-
-  const { data: lessonQuestions = [], isLoading: questionsLoading } = useQuery<Question[]>({
-    queryKey: ["/api/lessons", selectedLesson?.id, "questions"],
-    enabled: !!selectedLesson && selectedLesson.id !== undefined,
   });
 
   const courseForm = useForm<InsertCourse>({
@@ -60,17 +43,6 @@ export default function AdminCourses() {
       nome: "",
       descricao: "",
       imagem: "",
-    },
-  });
-
-  const lessonForm = useForm<InsertLesson>({
-    resolver: zodResolver(insertLessonSchema),
-    defaultValues: {
-      cursoId: 0,
-      titulo: "",
-      descricao: "",
-      videoUrl: "",
-      ordem: 0,
     },
   });
 
@@ -109,145 +81,9 @@ export default function AdminCourses() {
     },
   });
 
-  const createLessonMutation = useMutation({
-    mutationFn: async (data: InsertLesson) => {
-      return await apiRequest<Lesson>("POST", "/api/admin/lessons", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/courses", selectedCourse?.id, "lessons"] });
-      toast({
-        title: "Aula criada com sucesso!",
-        description: "A nova aula foi adicionada ao curso.",
-      });
-      setIsLessonDialogOpen(false);
-      lessonForm.reset();
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erro ao criar aula",
-        description: error.message || "Tente novamente.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteLessonMutation = useMutation({
-    mutationFn: async (id: number) => {
-      return await apiRequest("DELETE", `/api/admin/lessons/${id}`, undefined);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/courses", selectedCourse?.id, "lessons"] });
-      toast({
-        title: "Aula removida",
-        description: "A aula foi removida do curso.",
-      });
-    },
-  });
-
-  const saveQuestionsMutation = useMutation({
-    mutationFn: async (data: { lessonId: number; questions: any[] }) => {
-      return await apiRequest("POST", `/api/admin/lessons/${data.lessonId}/questions`, {
-        questions: data.questions,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/lessons", selectedLesson?.id, "questions"] });
-      toast({
-        title: "Quiz salvo com sucesso!",
-        description: "As perguntas foram atualizadas.",
-      });
-      setSelectedLesson(null);
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erro ao salvar quiz",
-        description: error.message || "Tente novamente.",
-        variant: "destructive",
-      });
-    },
-  });
-
   const onCreateCourse = (data: InsertCourse) => {
     createCourseMutation.mutate(data);
   };
-
-  const onCreateLesson = (data: InsertLesson) => {
-    if (selectedCourse) {
-      createLessonMutation.mutate({
-        ...data,
-        cursoId: selectedCourse.id,
-      });
-    }
-  };
-
-  const openQuizDialog = (lesson: Lesson) => {
-    setSelectedLesson(lesson);
-    // Don't reset questions here - let useEffect handle it once data loads
-  };
-
-  const handleSaveQuestions = () => {
-    if (!selectedLesson) return;
-
-    // Validate all questions
-    const allFilled = questions.every(
-      q => q.pergunta && q.opcaoA && q.opcaoB && q.opcaoC && q.respostaCorreta
-    );
-
-    if (!allFilled) {
-      toast({
-        title: "Preencha todas as perguntas",
-        description: "Todas as 3 perguntas devem estar completas.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    saveQuestionsMutation.mutate({
-      lessonId: selectedLesson.id,
-      questions,
-    });
-  };
-
-  // Load existing questions ONLY when lesson first opens (not on every refetch)
-  useEffect(() => {
-    if (!selectedLesson) return;
-    
-    // Only load questions from server once when dialog opens
-    if (!questionsLoading && lessonQuestions.length === 3) {
-      setQuestions([
-        {
-          pergunta: lessonQuestions[0].pergunta,
-          opcaoA: lessonQuestions[0].opcaoA,
-          opcaoB: lessonQuestions[0].opcaoB,
-          opcaoC: lessonQuestions[0].opcaoC,
-          respostaCorreta: lessonQuestions[0].respostaCorreta,
-        },
-        {
-          pergunta: lessonQuestions[1].pergunta,
-          opcaoA: lessonQuestions[1].opcaoA,
-          opcaoB: lessonQuestions[1].opcaoB,
-          opcaoC: lessonQuestions[1].opcaoC,
-          respostaCorreta: lessonQuestions[1].respostaCorreta,
-        },
-        {
-          pergunta: lessonQuestions[2].pergunta,
-          opcaoA: lessonQuestions[2].opcaoA,
-          opcaoB: lessonQuestions[2].opcaoB,
-          opcaoC: lessonQuestions[2].opcaoC,
-          respostaCorreta: lessonQuestions[2].respostaCorreta,
-        },
-      ]);
-    } else if (!questionsLoading) {
-      // Reset to empty if no existing questions
-      setQuestions([
-        { pergunta: "", opcaoA: "", opcaoB: "", opcaoC: "", respostaCorreta: "A" },
-        { pergunta: "", opcaoA: "", opcaoB: "", opcaoC: "", respostaCorreta: "A" },
-        { pergunta: "", opcaoA: "", opcaoB: "", opcaoC: "", respostaCorreta: "A" },
-      ]);
-    }
-    // Only run when selectedLesson changes or initial load completes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLesson?.id, questionsLoading]);
 
   return (
     <div className="space-y-8">
@@ -354,15 +190,16 @@ export default function AdminCourses() {
               <CardContent className="space-y-3">
                 <p className="text-foreground/70 line-clamp-2">{course.descricao}</p>
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => setSelectedCourse(course)}
-                    data-testid={`button-manage-lessons-${course.id}`}
-                  >
-                    <PlayCircle className="w-4 h-4 mr-2" />
-                    Aulas
-                  </Button>
+                  <Link href={`/admin/courses/${course.id}`} className="flex-1">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      data-testid={`button-manage-course-${course.id}`}
+                    >
+                      Gerenciar
+                      <ChevronRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </Link>
                   <Button
                     variant="outline"
                     size="icon"
@@ -395,270 +232,6 @@ export default function AdminCourses() {
           </div>
         </Card>
       )}
-
-      {/* Course Lessons Dialog */}
-      <Dialog open={!!selectedCourse} onOpenChange={() => setSelectedCourse(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl">{selectedCourse?.nome}</DialogTitle>
-            <DialogDescription>
-              Gerencie as aulas deste curso
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <Button onClick={() => setIsLessonDialogOpen(true)} data-testid="button-add-lesson">
-              <Plus className="w-4 h-4 mr-2" />
-              Adicionar Aula
-            </Button>
-
-            {courseLessons.length > 0 ? (
-              <div className="space-y-2">
-                {courseLessons
-                  .sort((a, b) => a.ordem - b.ordem)
-                  .map((lesson, index) => (
-                    <Card key={lesson.id} data-testid={`card-lesson-${lesson.id}`}>
-                      <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4">
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary font-semibold">
-                            {index + 1}
-                          </div>
-                          <div className="flex-1">
-                            <CardTitle className="text-base">{lesson.titulo}</CardTitle>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {lesson.descricao}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openQuizDialog(lesson)}
-                            data-testid={`button-quiz-${lesson.id}`}
-                          >
-                            <FileQuestion className="w-4 h-4 mr-2" />
-                            Quiz
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              if (confirm(`Tem certeza que deseja remover esta aula?`)) {
-                                deleteLessonMutation.mutate(lesson.id);
-                              }
-                            }}
-                            data-testid={`button-delete-lesson-${lesson.id}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </CardHeader>
-                    </Card>
-                  ))}
-              </div>
-            ) : (
-              <Card className="p-8">
-                <div className="text-center">
-                  <PlayCircle className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-                  <p className="text-muted-foreground">Nenhuma aula cadastrada ainda</p>
-                </div>
-              </Card>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Create Lesson Dialog */}
-      <Dialog open={isLessonDialogOpen} onOpenChange={setIsLessonDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Adicionar Nova Aula</DialogTitle>
-            <DialogDescription>
-              Preencha as informações da aula
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={lessonForm.handleSubmit(onCreateLesson)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="titulo">Título da Aula *</Label>
-              <Input id="titulo" {...lessonForm.register("titulo")} data-testid="input-lesson-title" />
-              {lessonForm.formState.errors.titulo && (
-                <p className="text-sm text-destructive">{lessonForm.formState.errors.titulo.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="descricao-lesson">Descrição *</Label>
-              <Textarea
-                id="descricao-lesson"
-                rows={3}
-                {...lessonForm.register("descricao")}
-                data-testid="textarea-lesson-description"
-              />
-              {lessonForm.formState.errors.descricao && (
-                <p className="text-sm text-destructive">{lessonForm.formState.errors.descricao.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="videoUrl">URL do Vídeo do YouTube *</Label>
-              <Input
-                id="videoUrl"
-                placeholder="https://www.youtube.com/watch?v=..."
-                {...lessonForm.register("videoUrl")}
-                data-testid="input-lesson-video"
-              />
-              {lessonForm.formState.errors.videoUrl && (
-                <p className="text-sm text-destructive">{lessonForm.formState.errors.videoUrl.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="ordem">Ordem</Label>
-              <Input
-                id="ordem"
-                type="number"
-                {...lessonForm.register("ordem", { valueAsNumber: true })}
-                data-testid="input-lesson-order"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsLessonDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={createLessonMutation.isPending} data-testid="button-submit-lesson">
-                {createLessonMutation.isPending ? "Criando..." : "Criar Aula"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Quiz Questions Dialog */}
-      <Dialog open={!!selectedLesson} onOpenChange={() => setSelectedLesson(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl">Quiz - {selectedLesson?.titulo}</DialogTitle>
-            <DialogDescription>
-              Configure 3 perguntas de múltipla escolha para validar o aprendizado
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            {questions.map((question, index) => (
-              <Card key={index} data-testid={`card-question-${index + 1}`}>
-                <CardHeader>
-                  <CardTitle className="text-lg">Pergunta {index + 1}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor={`pergunta-${index}`}>Pergunta *</Label>
-                    <Textarea
-                      id={`pergunta-${index}`}
-                      value={question.pergunta}
-                      onChange={(e) => {
-                        const newQuestions = [...questions];
-                        newQuestions[index].pergunta = e.target.value;
-                        setQuestions(newQuestions);
-                      }}
-                      rows={2}
-                      data-testid={`textarea-question-${index + 1}`}
-                      placeholder="Digite a pergunta..."
-                    />
-                  </div>
-
-                  <div className="grid md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor={`opcaoA-${index}`}>Opção A *</Label>
-                      <Input
-                        id={`opcaoA-${index}`}
-                        value={question.opcaoA}
-                        onChange={(e) => {
-                          const newQuestions = [...questions];
-                          newQuestions[index].opcaoA = e.target.value;
-                          setQuestions(newQuestions);
-                        }}
-                        data-testid={`input-option-a-${index + 1}`}
-                        placeholder="Resposta A"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor={`opcaoB-${index}`}>Opção B *</Label>
-                      <Input
-                        id={`opcaoB-${index}`}
-                        value={question.opcaoB}
-                        onChange={(e) => {
-                          const newQuestions = [...questions];
-                          newQuestions[index].opcaoB = e.target.value;
-                          setQuestions(newQuestions);
-                        }}
-                        data-testid={`input-option-b-${index + 1}`}
-                        placeholder="Resposta B"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor={`opcaoC-${index}`}>Opção C *</Label>
-                      <Input
-                        id={`opcaoC-${index}`}
-                        value={question.opcaoC}
-                        onChange={(e) => {
-                          const newQuestions = [...questions];
-                          newQuestions[index].opcaoC = e.target.value;
-                          setQuestions(newQuestions);
-                        }}
-                        data-testid={`input-option-c-${index + 1}`}
-                        placeholder="Resposta C"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor={`resposta-${index}`}>Resposta Correta *</Label>
-                    <Select
-                      value={question.respostaCorreta}
-                      onValueChange={(value) => {
-                        const newQuestions = [...questions];
-                        newQuestions[index].respostaCorreta = value;
-                        setQuestions(newQuestions);
-                      }}
-                    >
-                      <SelectTrigger data-testid={`select-answer-${index + 1}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="A">A - {question.opcaoA || "..."}</SelectItem>
-                        <SelectItem value="B">B - {question.opcaoB || "..."}</SelectItem>
-                        <SelectItem value="C">C - {question.opcaoC || "..."}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <div className="flex justify-end gap-2 pt-4">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => setSelectedLesson(null)}
-              data-testid="button-cancel-quiz"
-            >
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleSaveQuestions}
-              disabled={saveQuestionsMutation.isPending}
-              data-testid="button-save-quiz"
-            >
-              {saveQuestionsMutation.isPending ? "Salvando..." : "Salvar Quiz"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

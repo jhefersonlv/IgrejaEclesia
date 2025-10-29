@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments, questions, lessonCompletions } from "@shared/schema";
+import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments, questions, lessonCompletions, courseEnrollments } from "@shared/schema";
 import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment, Question, InsertQuestion, LessonCompletion, InsertLessonCompletion } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
@@ -81,6 +81,13 @@ export interface IStorage {
   getCourseProgress(userId: number, courseId: number): Promise<{ totalLessons: number, completedLessons: number, progress: number }>;
   getAllUsersProgress(courseId: number): Promise<{ userId: number; userName: string; progress: number; completedLessons: number }[]>;
   
+  // Course Enrollments
+  createEnrollment(userId: number, courseId: number): Promise<void>;
+  deleteEnrollment(userId: number, courseId: number): Promise<void>;
+  isUserEnrolled(userId: number, courseId: number): Promise<boolean>;
+  getEnrollmentsByCourse(courseId: number): Promise<User[]>;
+  getEnrolledCourses(userId: number): Promise<Course[]>;
+
   // Course Analytics
   getCourseAnalytics(): Promise<{
     totalCourses: number;
@@ -187,6 +194,30 @@ export class DatabaseStorage implements IStorage {
   async deleteCourse(id: number): Promise<void> {
     await db.delete(lessons).where(eq(lessons.cursoId, id));
     await db.delete(courses).where(eq(courses.id, id));
+  }
+
+  // Course Enrollments
+  async createEnrollment(userId: number, courseId: number): Promise<void> {
+    await db.insert(courseEnrollments).values({ userId, courseId });
+  }
+
+  async deleteEnrollment(userId: number, courseId: number): Promise<void> {
+    await db.delete(courseEnrollments).where(and(eq(courseEnrollments.userId, userId), eq(courseEnrollments.courseId, courseId)));
+  }
+
+  async isUserEnrolled(userId: number, courseId: number): Promise<boolean> {
+    const result = await db.select().from(courseEnrollments).where(and(eq(courseEnrollments.userId, userId), eq(courseEnrollments.courseId, courseId))).limit(1);
+    return result.length > 0;
+  }
+
+  async getEnrollmentsByCourse(courseId: number): Promise<User[]> {
+    const result = await db.select({ user: users }).from(courseEnrollments).innerJoin(users, eq(courseEnrollments.userId, users.id)).where(eq(courseEnrollments.courseId, courseId));
+    return result.map(r => r.user);
+  }
+
+  async getEnrolledCourses(userId: number): Promise<Course[]> {
+    const result = await db.select({ course: courses }).from(courseEnrollments).innerJoin(courses, eq(courseEnrollments.courseId, courses.id)).where(eq(courseEnrollments.userId, userId));
+    return result.map(r => r.course);
   }
 
   // Lessons
@@ -501,11 +532,11 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
 
-    const allUsers = await this.getAllUsers();
+    const enrolledUsers = await this.getEnrollmentsByCourse(courseId);
     const lessonIds = courseLessons.map(l => l.id);
 
     const results = await Promise.all(
-      allUsers.map(async (user) => {
+      enrolledUsers.map(async (user) => {
         const completions = await db.select()
           .from(lessonCompletions)
           .where(and(
@@ -526,7 +557,7 @@ export class DatabaseStorage implements IStorage {
       })
     );
 
-    return results.filter(r => r.completedLessons > 0); // Only return users with progress
+    return results;
   }
 
   async getCourseAnalytics() {

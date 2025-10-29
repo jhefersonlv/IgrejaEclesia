@@ -130,14 +130,38 @@ export const lessonCompletions = pgTable("lesson_completions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Course enrollments table (matrículas)
+export const courseEnrollments = pgTable("course_enrollments", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  courseId: integer("course_id").notNull().references(() => courses.id, { onDelete: "cascade" }),
+  enrolledAt: timestamp("enrolled_at").notNull().defaultNow(),
+});
+
 // Relations
+export const usersRelations = relations(users, ({ many }) => ({
+  enrollments: many(courseEnrollments),
+}));
+
 export const coursesRelations = relations(courses, ({ many }) => ({
   lessons: many(lessons),
+  enrollments: many(courseEnrollments),
 }));
 
 export const lessonsRelations = relations(lessons, ({ one }) => ({
   course: one(courses, {
     fields: [lessons.cursoId],
+    references: [courses.id],
+  }),
+}));
+
+export const courseEnrollmentsRelations = relations(courseEnrollments, ({ one }) => ({
+  user: one(users, {
+    fields: [courseEnrollments.userId],
+    references: [users.id],
+  }),
+  course: one(courses, {
+    fields: [courseEnrollments.courseId],
     references: [courses.id],
   }),
 }));
@@ -233,6 +257,11 @@ export const insertLessonCompletionSchema = z.object({
   tentativas: z.number(),
 });
 
+export const insertCourseEnrollmentSchema = z.object({
+  userId: z.number(),
+  courseId: z.number(),
+});
+
 // Login schema
 export const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -246,6 +275,8 @@ export type Event = typeof events.$inferSelect;
 export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type Course = typeof courses.$inferSelect;
 export type InsertCourse = z.infer<typeof insertCourseSchema>;
+export type CourseEnrollment = typeof courseEnrollments.$inferSelect;
+export type InsertCourseEnrollment = z.infer<typeof insertCourseEnrollmentSchema>;
 export type Lesson = typeof lessons.$inferSelect;
 export type InsertLesson = z.infer<typeof insertLessonSchema>;
 export type Material = typeof materials.$inferSelect;

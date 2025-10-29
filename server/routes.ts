@@ -100,7 +100,7 @@ export function registerRoutes(app: Express) {
   });
 
   // Member Routes (Authenticated)
-  app.get("/api/courses", authenticateToken, async (req: Request, res: Response) => {
+  app.get("/api/courses", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
       const courses = await storage.getAllCourses();
       res.json(courses);
@@ -110,9 +110,42 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  app.get("/api/courses/:id", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const course = await storage.getCourseById(id);
+      if (!course) {
+        return res.status(404).json({ message: "Curso não encontrado" });
+      }
+      res.json(course);
+    } catch (error) {
+      console.error("Get course error:", error);
+      res.status(500).json({ message: "Erro ao buscar curso" });
+    }
+  });
+
+  app.get("/api/my-courses", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const courses = await storage.getEnrolledCourses(userId);
+      res.json(courses);
+    } catch (error) {
+      console.error("Get my courses error:", error);
+      res.status(500).json({ message: "Erro ao buscar seus cursos" });
+    }
+  });
+
   app.get("/api/courses/:id/lessons", authenticateToken, async (req: Request, res: Response) => {
     try {
       const courseId = parseInt(req.params.id);
+      const userId = (req as any).userId;
+      const user = (req as any).user;
+
+      const isEnrolled = await storage.isUserEnrolled(userId, courseId);
+      if (!isEnrolled && !user.isAdmin) {
+        return res.status(403).json({ message: "Você não está matriculado neste curso" });
+      }
+
       const lessons = await storage.getLessonsByCourseId(courseId);
       res.json(lessons);
     } catch (error) {
@@ -249,6 +282,42 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error("Delete course error:", error);
       res.status(500).json({ message: "Erro ao deletar curso" });
+    }
+  });
+
+  // Admin Routes - Course Enrollments
+  app.get("/api/admin/courses/:courseId/enrollments", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const courseId = parseInt(req.params.courseId);
+      const enrolledUsers = await storage.getEnrollmentsByCourse(courseId);
+      res.json(enrolledUsers);
+    } catch (error) {
+      console.error("Get enrollments error:", error);
+      res.status(500).json({ message: "Erro ao buscar matrículas" });
+    }
+  });
+
+  app.post("/api/admin/courses/:courseId/enrollments", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const courseId = parseInt(req.params.courseId);
+      const { userId } = req.body;
+      await storage.createEnrollment(userId, courseId);
+      res.status(201).send();
+    } catch (error) {
+      console.error("Create enrollment error:", error);
+      res.status(500).json({ message: "Erro ao matricular usuário" });
+    }
+  });
+
+  app.delete("/api/admin/courses/:courseId/enrollments/:userId", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const courseId = parseInt(req.params.courseId);
+      const userId = parseInt(req.params.userId);
+      await storage.deleteEnrollment(userId, courseId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete enrollment error:", error);
+      res.status(500).json({ message: "Erro ao remover matrícula" });
     }
   });
 

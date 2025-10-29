@@ -20,6 +20,7 @@ import LeaderSchedules from "@/pages/leader-schedules";
 import AdminDashboard from "@/pages/admin-dashboard";
 import AdminMembers from "@/pages/admin-members";
 import AdminCourses from "@/pages/admin-courses";
+import AdminCourseDetails from "@/pages/admin-course-details";
 import AdminEvents from "@/pages/admin-events";
 import AdminMaterials from "@/pages/admin-materials";
 import AdminPrayers from "@/pages/admin-prayers";
@@ -86,9 +87,12 @@ function Router() {
           <AdminMembers />
         </AdminLayout>
       </Route>
-      <Route path="/admin/courses">
+      <Route path="/admin/courses" nest>
         <AdminLayout>
-          <AdminCourses />
+          <Switch>
+            <Route path="/" component={AdminCourses} />
+            <Route path="/:id" component={AdminCourseDetails} />
+          </Switch>
         </AdminLayout>
       </Route>
       <Route path="/admin/events">
