@@ -57,6 +57,13 @@ export default function AdminCourseDetailsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/courses", courseId, "progress"] });
       toast({ title: "Usuário matriculado com sucesso!" });
     },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao matricular usuário",
+        description: error.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    },
   });
 
   const unenrollMutation = useMutation({
