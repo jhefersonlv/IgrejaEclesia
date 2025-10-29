@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Calendar, Trash2, Save, Pencil } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -83,26 +83,18 @@ export default function LeaderSchedulesPage() {
   const scheduleDetailsQueries = useQueries({
     queries: schedules.map(schedule => ({
       queryKey: ["/api/schedules/details", schedule.id],
-      queryFn: () => apiRequest("GET", `/api/schedules/details/${schedule.id}`),
+      queryFn: async () => {
+        const response = await fetch(`/api/schedules/details/${schedule.id}`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        });
+        if (!response.ok) throw new Error("Failed to fetch schedule details");
+        return response.json();
+      },
       enabled: schedules.length > 0,
     })),
   });
-
-  useEffect(() => {
-    if (editingSchedule && schedulesWithAssignments.length > 0) {
-      const schedule = schedulesWithAssignments.find(s => s.id === editingSchedule);
-      if (schedule) {
-        const initialAssignments = schedule.assignments.reduce((acc, a) => {
-          if (a.posicao === "obreiro") {
-            const obreiroIndex = schedule.assignments.filter(ass => ass.posicao === "obreiro").findIndex(ass => ass.id === a.id);
-            return { ...acc, [`obreiro-${obreiroIndex}`]: a.userId };
-          }
-          return { ...acc, [a.posicao]: a.userId };
-        }, {});
-        setAssignments(initialAssignments);
-      }
-    }
-  }, [editingSchedule, schedulesWithAssignments]);
 
   const schedulesWithAssignments: ScheduleWithAssignments[] = schedules.map((schedule, index) => {
     const details = scheduleDetailsQueries[index]?.data as any;
