@@ -11,7 +11,7 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { BookOpen, Video, GraduationCap, User, LogOut, Church, CalendarDays, Heart, Shield } from "lucide-react";
+import { BookOpen, Video, GraduationCap, User, LogOut, CalendarDays, Heart, Shield } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 
@@ -28,7 +28,7 @@ export function AppSidebar({ userNome, isLider, isAdmin }: AppSidebarProps) {
     {
       title: "Dashboard",
       url: "/membro",
-      icon: Church,
+      icon: () => <img src="/logo_eclesia.png" alt="Logo" className="w-4 h-4" />,
     },
     {
       title: "Cursos",
@@ -73,7 +73,7 @@ export function AppSidebar({ userNome, isLider, isAdmin }: AppSidebarProps) {
       <SidebarHeader className="p-6 border-b">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
-            <Church className="w-6 h-6 text-primary" />
+            <img src="/logo_eclesia.png" alt="Logo" className="w-6 h-6" />
           </div>
           <div>
             <h2 className="font-sans font-semibold text-lg">Área do Membro</h2>

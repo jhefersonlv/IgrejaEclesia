@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Church, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginCredentials } from "@shared/schema";
@@ -70,7 +70,7 @@ export default function Login() {
           <CardHeader className="text-center space-y-4 pb-8">
             <div className="flex justify-center">
               <div className="p-4 rounded-full bg-primary/10">
-                <Church className="w-12 h-12 text-primary" />
+                <img src="/logo_eclesia.png" alt="Logo" className="w-12 h-12" />
               </div>
             </div>
             <div>

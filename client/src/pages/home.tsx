@@ -8,7 +8,7 @@ import heroImage from "@assets/generated_images/Church_exterior_hero_image_d5bc8
 import worshipImage from "@assets/generated_images/Worship_community_scene_64e8950f.png";
 import bibleStudyImage from "@assets/generated_images/Bible_study_group_689038a0.png";
 import fellowshipImage from "@assets/generated_images/Community_fellowship_event_1583deef.png";
-import logoEclesia from "@assets/generated_images/logo_eclesia.png";
+import logoEclesia from "/logo_eclesia.png";
 
 export default function Home() {
   const { data: events = [], isLoading } = useQuery<Event[]>({
