@@ -8,6 +8,7 @@ import heroImage from "@assets/generated_images/Church_exterior_hero_image_d5bc8
 import worshipImage from "@assets/generated_images/Worship_community_scene_64e8950f.png";
 import bibleStudyImage from "@assets/generated_images/Bible_study_group_689038a0.png";
 import fellowshipImage from "@assets/generated_images/Community_fellowship_event_1583deef.png";
+import logoEclesia from "@assets/generated_images/logo_eclesia.png";
 
 export default function Home() {
   const { data: events = [], isLoading } = useQuery<Event[]>({
@@ -23,7 +24,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* <Church className="w-8 h-8 text-primary" /> */} 
-            <img src="../../public/favicon.png" alt="" width="100" />
+            <img src={logoEclesia} alt="" width="100" height="100"/>
             <div>
               <h1 className="font-sans text-xl font-semibold text-foreground">Comunidade Eclesia</h1>
               <p className="text-xs text-muted-foreground">Uma casa para todos</p>
@@ -57,7 +58,7 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/60" />
         </div>
         <div className="relative z-10 text-center px-6 max-w-4xl">
-          <h2 className="font-sans text-5xl md:text-6xl font-bold text-white mb-6" data-testid="text-hero-title">Bem-vindo à 
+          <h2 className="font-sans text-5xl md:text-6xl font-bold text-white mb-6" data-testid="text-hero-title">Bem-vindo à <br/>
           Comunidade Eclesia</h2>
           <p className="text-xl md:text-2xl text-white/90 mb-8" data-testid="text-hero-subtitle">
             Um lugar de fé, esperança e amor para toda a família
@@ -86,7 +87,7 @@ export default function Home() {
                 Somos uma comunidade cristã comprometida com o ensino da Palavra de Deus e o cuidado com as pessoas. Nossa missão é criar um ambiente acolhedor onde cada pessoa possa crescer em sua fé e desenvolver relacionamentos significativos.
               </p>
               <p className="text-lg text-foreground/80 mb-6">
-                Há mais de 20 anos servindo a comunidade com amor, dedicação e excelência no ministério. Oferecemos cultos, estudos bíblicos, grupos de comunhão e diversos ministérios para todas as idades.
+                Há mais de 10 anos servindo a comunidade com amor, dedicação e excelência no ministério. Oferecemos cultos, estudos bíblicos, grupos de comunhão e diversos ministérios para todas as idades.
               </p>
               <div className="flex flex-wrap gap-4">
                 <div className="flex items-center gap-2 text-primary">
@@ -240,10 +241,10 @@ export default function Home() {
                 <div className="p-3 rounded-lg bg-primary/10">
                   <Phone className="w-6 h-6 text-primary" />
                 </div>
-                <div>
+                <a href="https://wa.me/+5511948923255?text=Ol%C3%A1%2C%20eu%20vim%20atrav%C3%A9s%20do%20site%20e%20gostaria%20de%20saber%20mais%20sobre%20a%20Igreja"><div>
                   <h4 className="font-semibold text-lg mb-1">Telefone</h4>
-                  <p className="text-foreground/70">(11) 1234-5678</p>
-                </div>
+                  <p className="text-foreground/70">(11) 94892-3255</p>
+                </div></a>
               </div>
               <div className="flex items-start gap-4">
                 <div className="p-3 rounded-lg bg-primary/10">
@@ -256,8 +257,7 @@ export default function Home() {
               </div>
             </div>
             <div className="h-96 rounded-lg overflow-hidden border">
-              <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3657.1975988974395!2d-46.65450892464942!3d-23.561414278795984!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x94ce59c8da0aa315%3A0xd59f9431f2c9776a!2sSão%20Paulo%2C%20SP!5e0!3m2!1spt-BR!2sbr!4v1234567890123!5m2!1spt-BR!2sbr"
+              <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d4443.07191395042!2d-46.20434862467009!3d-23.55696067880291!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x94cdd88501fb4249%3A0x77d80b7fde453d6f!2sComunidade%20Eclesia!5e1!3m2!1spt-BR!2sbr!4v1761707169172!5m2!1spt-BR!2sbr"
                 width="100%"
                 height="100%"
                 style={{ border: 0 }}
@@ -273,11 +273,11 @@ export default function Home() {
       <footer className="bg-foreground/5 border-t py-8 px-6">
         <div className="max-w-7xl mx-auto text-center">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <Church className="w-6 h-6 text-primary" />
-            <span className="font-sans font-semibold text-lg">Igreja Comunidade</span>
+            <img src={logoEclesia} alt="" width="200" height="200"/>
           </div>
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} Igreja Comunidade. Todos os direitos reservados.
+            © {new Date().getFullYear()} Igreja Eclesia. Todos os direitos reservados. <br/>
+            Desenvolvido por <a href="https://jhefersonlv.github.io/projeto/?fbclid=PAZXh0bgNhZW0CMTEAAadmw-ZAuHUKhCCtzq-_lrJV2OwSVSMJv13Qt6ZRNrAm7bS3OkSKETfID0VsjA_aem_5RMCTteZdLHm_QroKD-Qeg">Jheferson Vieira</a>
           </p>
         </div>
       </footer>
