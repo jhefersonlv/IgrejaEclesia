@@ -19,7 +19,7 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
-export async function setupVite(app: Express, server: Server) {
+export async function setupVite(app: Express, server: Server, callback?: () => void) {
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
@@ -41,6 +41,11 @@ export async function setupVite(app: Express, server: Server) {
   });
 
   app.use(vite.middlewares);
+
+  if (callback) {
+    callback();
+  }
+
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
 

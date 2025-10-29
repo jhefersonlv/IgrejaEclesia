@@ -57,8 +57,9 @@ app.use((req, res, next) => {
   });
 
   if (app.get("env") === "development") {
-    registerRoutes(app);
-    await setupVite(app, app as any);
+    await setupVite(app, app as any, () => {
+      registerRoutes(app);
+    });
   } else {
     registerRoutes(app);
     serveStatic(app);
