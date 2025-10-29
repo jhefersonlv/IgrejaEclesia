@@ -300,10 +300,19 @@ export function registerRoutes(app: Express) {
   app.post("/api/admin/courses/:courseId/enrollments", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
       const courseId = parseInt(req.params.courseId);
-      const { userId } = req.body;
+      const { userId } = z.object({ userId: z.number() }).parse(req.body);
+
+      const user = await storage.getUserById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+
       await storage.createEnrollment(userId, courseId);
       res.status(201).send();
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
       console.error("Create enrollment error:", error);
       res.status(500).json({ message: "Erro ao matricular usuário" });
     }
