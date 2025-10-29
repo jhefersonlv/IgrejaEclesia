@@ -482,24 +482,21 @@ export function registerRoutes(app: Express) {
     next();
   };
 
-  // Get schedules (members can view) - AGORA TRATA FILTROS VIA QUERY STRING
+  // Get schedules (members can view) - Rota Otimizada
   app.get("/api/schedules", authenticateToken, async (req: Request, res: Response) => {
     try {
-      // 1. Tenta pegar o mês e ano da query string (?month=X&year=Y)
       const queryMonth = req.query.month ? parseInt(req.query.month as string) : null;
       const queryYear = req.query.year ? parseInt(req.query.year as string) : null;
       
-      let schedules;
+      let schedules;
 
-      // 2. Se tiver mês e ano válidos na query, usa a função de filtro
       if (queryMonth && queryYear && !isNaN(queryMonth) && !isNaN(queryYear)) {
-          // CHAMAR O FILTRO (storage.getSchedulesByMonth)
-          schedules = await storage.getSchedulesByMonth(queryMonth, queryYear); 
-      } else {
-          // 3. Se não tiver filtros, busca tudo (comportamento original) - RECOMENDO BUSCAR O MÊS ATUAL AQUI SE O FRONTEND NUNCA ENVIAR SEM PARÂMETROS.
-          // Por agora, vou manter a chamada original para evitar quebrar o código existente.
-          schedules = await storage.getAllSchedules();
-      }
+        // Usa a nova função que já inclui assignments
+        schedules = await storage.getSchedulesByMonth(queryMonth, queryYear);
+      } else {
+        // Comportamento padrão: busca as próximas escalas (já com assignments)
+        schedules = await storage.getUpcomingSchedules();
+      }
 
       res.json(schedules);
     } catch (error) {
@@ -508,7 +505,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Get schedule with assignments (must come before /:mes/:ano route)
+  // Get schedule with assignments - Rota mantida para visualização de detalhes
   app.get("/api/schedules/details/:id", authenticateToken, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
@@ -523,19 +520,6 @@ export function registerRoutes(app: Express) {
       res.status(500).json({ message: "Erro ao buscar detalhes da escala" });
     }
   });
-
-  // DELETAR ESTA ROTA. Como a rota /api/schedules agora lida com os filtros, esta se tornou redundante.
-  // app.get("/api/schedules/:mes/:ano", authenticateToken, async (req: Request, res: Response) => {
-  //     try {
-  //       const mes = parseInt(req.params.mes);
-  //       const ano = parseInt(req.params.ano);
-  //       const schedules = await storage.getSchedulesByMonth(mes, ano);
-  //       res.json(schedules);
-  //     } catch (error) {
-  //       console.error("Get schedules by month error:", error);
-  //       res.status(500).json({ message: "Erro ao buscar escalas" });
-  //     }
-  // });
 
   // Create schedule (leaders only)
   app.post("/api/schedules", authenticateToken, requireLeader, async (req: Request, res: Response) => {
@@ -772,19 +756,4 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // DELETAR ROTA REDUNDANTE
-  // app.get("/api/schedules/:mes/:ano", authenticateToken, async (req: Request, res: Response) => {
-  //     try {
-  //       const mes = parseInt(req.params.mes);
-  //       const ano = parseInt(req.params.ano);
-  //       const schedules = await storage.getSchedulesByMonth(mes, ano);
-  //       res.json(schedules);
-  //     } catch (error) {
-  //       console.error("Get schedules by month error:", error);
-  //       res.status(500).json({ message: "Erro ao buscar escalas" });
-  //     }
-  // });
-  
-  // Rota de GET /api/schedules/:mes/:ano foi removida para usar a rota principal com query params.
-  
 }

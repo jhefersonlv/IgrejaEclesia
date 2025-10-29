@@ -61,8 +61,8 @@ export interface IStorage {
   
   // Schedules
   getAllSchedules(): Promise<ScheduleWithAssignments[]>;
-  getSchedulesByMonth(mes: number, ano: number): Promise<Schedule[]>;
-  getUpcomingSchedules(): Promise<Schedule[]>; 
+  getSchedulesByMonth(mes: number, ano: number): Promise<ScheduleWithAssignments[]>;
+  getUpcomingSchedules(): Promise<ScheduleWithAssignments[]>;
   getScheduleById(id: number): Promise<Schedule | null>;
   createSchedule(data: InsertSchedule): Promise<Schedule>;
   updateSchedule(id: number, data: Partial<InsertSchedule>): Promise<Schedule>;
@@ -384,56 +384,75 @@ export class DatabaseStorage implements IStorage {
     return Object.values(scheduleMap);
   }
 
-  // CORREÇÃO APLICADA AQUI: Usando o campo 'data' (que deve ser DATE ou string 'YYYY-MM-DD')
-  async getSchedulesByMonth(mes: number, ano: number): Promise<Schedule[]> {
-    // 1. Constrói a string de mês formatada (ex: '10' para Outubro)
-    const mesFormatado = String(mes).padStart(2, '0');
-    
-    // 2. Constrói a string de data de início para o 1º dia do mês
-    const inicioDoMes = `${ano}-${mesFormatado}-01`;
-    
-    // 3. Constrói a string de data do FIM do MÊS (YYYY-MM-DD)
-    // No PostgreSQL (usado pelo Neon), podemos usar funções SQL para calcular a data
-    // do último dia do mês, garantindo a precisão da comparação.
-    // Primeiro, calcula o primeiro dia do mês SEGUINTE e subtrai 1 dia.
-    const primeiroDiaDoProximoMes = sql<string>`(${ano} || '-' || (${mes} + 1) || '-01')::date`;
-    const finalDoMes = sql<string>`
-      CASE 
-        WHEN ${mes} = 12 THEN ((${ano} + 1) || '-01-01')::date - interval '1 day' -- Se for Dezembro, vai para o 1º de Janeiro do ano seguinte e subtrai 1 dia
-        ELSE ${primeiroDiaDoProximoMes} - interval '1 day'
-      END
-    `;
-
-
-    return await db.select().from(schedules)
+  // CORRIGIDO: Retorna `ScheduleWithAssignments[]` e usa `EXTRACT` para simplicidade.
+  async getSchedulesByMonth(mes: number, ano: number): Promise<ScheduleWithAssignments[]> {
+    const rows = await db
+      .select({
+        schedule: schedules,
+        assignment: scheduleAssignments,
+        user: users,
+      })
+      .from(schedules)
+      .leftJoin(scheduleAssignments, eq(schedules.id, scheduleAssignments.scheduleId))
+      .leftJoin(users, eq(scheduleAssignments.userId, users.id))
       .where(
-        // Filtra a data da escala para estar DENTRO do mês e ano fornecidos.
         and(
-          // data >= 1º dia do mês (inícioDoMes)
-          gte(schedules.data, inicioDoMes),
-          // data <= Último dia do mês (finalDoMes calculado pelo SQL)
-          sql`${schedules.data}::date <= ${finalDoMes}`
+          sql`EXTRACT(MONTH FROM ${schedules.data}::date) = ${mes}`,
+          sql`EXTRACT(YEAR FROM ${schedules.data}::date) = ${ano}`
         )
       )
       .orderBy(schedules.data);
+
+    // Mapeamento (lógica idêntica ao getAllSchedules)
+    const scheduleMap: Record<number, ScheduleWithAssignments> = {};
+    for (const row of rows) {
+      const { schedule, assignment, user } = row;
+      if (!scheduleMap[schedule.id]) {
+        scheduleMap[schedule.id] = { ...schedule, assignments: [] };
+      }
+      if (assignment) {
+        const { senha, ...userWithoutPassword } = user || {};
+        scheduleMap[schedule.id].assignments.push({
+          ...assignment,
+          user: user ? (userWithoutPassword as User) : null,
+        });
+      }
+    }
+    return Object.values(scheduleMap);
   }
 
-  // NOVO MÉTODO: Retorna todas as escalas futuras (a partir de hoje)
-  async getUpcomingSchedules(): Promise<Schedule[]> {
-    // Obter a data de hoje formatada como 'YYYY-MM-DD'
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const todayDateString = `${year}-${month}-${day}`;
+  // CORRIGIDO: Retorna `ScheduleWithAssignments[]` para consistência.
+  async getUpcomingSchedules(): Promise<ScheduleWithAssignments[]> {
+    const todayDateString = new Date().toISOString().split('T')[0];
 
-    // Filtra escalas onde a coluna 'data' (que deve ser um DATE ou TEXT no formato 'YYYY-MM-DD')
-    // é maior ou igual à data de hoje.
-    return await db.select().from(schedules)
-      // Usamos gte (Greater Than or Equal) para filtrar por datas futuras,
-      // assumindo que a coluna `data` é compatível com comparação de strings ou tipo Date/Timestamp.
-      .where(gte(schedules.data, todayDateString)) 
+    const rows = await db
+      .select({
+        schedule: schedules,
+        assignment: scheduleAssignments,
+        user: users,
+      })
+      .from(schedules)
+      .leftJoin(scheduleAssignments, eq(schedules.id, scheduleAssignments.scheduleId))
+      .leftJoin(users, eq(scheduleAssignments.userId, users.id))
+      .where(gte(schedules.data, todayDateString))
       .orderBy(schedules.data);
+
+    // Mapeamento (lógica idêntica ao getAllSchedules)
+    const scheduleMap: Record<number, ScheduleWithAssignments> = {};
+    for (const row of rows) {
+      const { schedule, assignment, user } = row;
+      if (!scheduleMap[schedule.id]) {
+        scheduleMap[schedule.id] = { ...schedule, assignments: [] };
+      }
+      if (assignment) {
+        const { senha, ...userWithoutPassword } = user || {};
+        scheduleMap[schedule.id].assignments.push({
+          ...assignment,
+          user: user ? (userWithoutPassword as User) : null,
+        });
+      }
+    }
+    return Object.values(scheduleMap);
   }
 
   async getScheduleById(id: number): Promise<Schedule | null> {
