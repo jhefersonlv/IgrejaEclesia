@@ -22,7 +22,8 @@ export default function Home() {
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Church className="w-8 h-8 text-primary" />
+            {/* <Church className="w-8 h-8 text-primary" /> */} 
+            <img src="../../public/favicon.png" alt="" width="100" />
             <div>
               <h1 className="font-sans text-xl font-semibold text-foreground">Comunidade Eclesia</h1>
               <p className="text-xs text-muted-foreground">Uma casa para todos</p>
