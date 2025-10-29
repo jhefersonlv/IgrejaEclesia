@@ -248,6 +248,52 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Admin Routes - Course Enrollments
+  app.get("/api/admin/courses/:courseId/enrollments", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const courseId = parseInt(req.params.courseId);
+      const users = await storage.getEnrolledUsers(courseId);
+      const usersWithoutPasswords = users.map(({ senha, ...user }) => user);
+      res.json(usersWithoutPasswords);
+    } catch (error) {
+      console.error("Get enrollments error:", error);
+      res.status(500).json({ message: "Erro ao buscar matrículas" });
+    }
+  });
+
+  app.post("/api/admin/courses/:courseId/enrollments", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const courseId = parseInt(req.params.courseId);
+      const { userId } = req.body;
+
+      if (!userId) {
+        return res.status(400).json({ message: "ID do usuário é obrigatório" });
+      }
+
+      const enrollment = await storage.enrollUserInCourse(userId, courseId);
+      res.status(201).json(enrollment);
+    } catch (error) {
+      console.error("Enroll user error:", error);
+      // Handle potential unique constraint violation
+      if (error.code === '23505') {
+        return res.status(409).json({ message: "Usuário já matriculado neste curso" });
+      }
+      res.status(500).json({ message: "Erro ao matricular usuário" });
+    }
+  });
+
+  app.delete("/api/admin/courses/:courseId/enrollments/:userId", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const courseId = parseInt(req.params.courseId);
+      const userId = parseInt(req.params.userId);
+      await storage.unenrollUserFromCourse(userId, courseId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Unenroll user error:", error);
+      res.status(500).json({ message: "Erro ao remover matrícula" });
+    }
+  });
+
   // Admin Routes - Lessons
   app.post("/api/admin/lessons", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {

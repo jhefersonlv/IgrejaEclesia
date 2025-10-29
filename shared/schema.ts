@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, boolean, date, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, boolean, date, integer, timestamp, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -132,10 +132,13 @@ export const lessonCompletions = pgTable("lesson_completions", {
 
 // Course enrollments table (matrículas)
 export const courseEnrollments = pgTable("course_enrollments", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   courseId: integer("course_id").notNull().references(() => courses.id, { onDelete: "cascade" }),
   enrolledAt: timestamp("enrolled_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    pk: primaryKey({ columns: [table.userId, table.courseId] }),
+  }
 });
 
 // Relations

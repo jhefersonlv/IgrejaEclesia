@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments, questions, lessonCompletions } from "@shared/schema";
-import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment, Question, InsertQuestion, LessonCompletion, InsertLessonCompletion } from "@shared/schema";
+import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments, questions, lessonCompletions, courseEnrollments } from "@shared/schema";
+import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment, Question, InsertQuestion, LessonCompletion, InsertLessonCompletion, CourseEnrollment } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
@@ -101,6 +101,11 @@ export interface IStorage {
       studentsCompleted: number;
     }[];
   }>;
+
+  // Course Enrollments
+  enrollUserInCourse(userId: number, courseId: number): Promise<CourseEnrollment>;
+  unenrollUserFromCourse(userId: number, courseId: number): Promise<void>;
+  getEnrolledUsers(courseId: number): Promise<User[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -612,6 +617,31 @@ export class DatabaseStorage implements IStorage {
       averageCompletionRate,
       courseStats,
     };
+  }
+
+  // Course Enrollments
+  async enrollUserInCourse(userId: number, courseId: number): Promise<CourseEnrollment> {
+    const result = await db.insert(courseEnrollments).values({
+      userId,
+      courseId,
+    }).returning();
+    return result[0];
+  }
+
+  async unenrollUserFromCourse(userId: number, courseId: number): Promise<void> {
+    await db.delete(courseEnrollments).where(and(
+      eq(courseEnrollments.userId, userId),
+      eq(courseEnrollments.courseId, courseId)
+    ));
+  }
+
+  async getEnrolledUsers(courseId: number): Promise<User[]> {
+    const enrollments = await db.select()
+      .from(courseEnrollments)
+      .where(eq(courseEnrollments.courseId, courseId))
+      .leftJoin(users, eq(courseEnrollments.userId, users.id));
+
+    return enrollments.map(e => e.users).filter((u): u is User => u !== null);
   }
 }
 
