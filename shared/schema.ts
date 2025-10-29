@@ -229,10 +229,8 @@ export const insertNotificationSchema = z.object({
 });
 
 export const insertScheduleSchema = z.object({
-  mes: z.number(),
-  ano: z.number(),
   tipo: z.string(),
-  data: z.string(),
+  data: z.string().min(1, "A data é obrigatória"), // Garante que a data não seja vazia
   observacoes: z.string().optional(),
 });
 

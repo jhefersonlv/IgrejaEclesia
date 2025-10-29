@@ -34,10 +34,8 @@ const POSICOES_LABELS: Record<string, string> = {
 };
 
 const scheduleFormSchema = z.object({
-  mes: z.number().min(1).max(12),
-  ano: z.number().min(2024),
   tipo: z.enum(["louvor", "obreiros"]),
-  data: z.string(),
+  data: z.string().min(1, "A data é obrigatória"),
   observacoes: z.string().optional(),
 });
 
@@ -56,8 +54,6 @@ export default function LeaderSchedulesPage() {
   const form = useForm<ScheduleFormData>({
     resolver: zodResolver(scheduleFormSchema),
     defaultValues: {
-      mes: selectedMonth,
-      ano: selectedYear,
       tipo: "louvor",
       data: "",
       observacoes: "",
@@ -88,8 +84,6 @@ export default function LeaderSchedulesPage() {
       setAssignments(initialAssignments);
     } else {
       form.reset({
-        mes: selectedMonth,
-        ano: selectedYear,
         tipo: "louvor",
         data: "",
         observacoes: "",
@@ -123,7 +117,7 @@ export default function LeaderSchedulesPage() {
       return schedule;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/schedules", selectedMonth, selectedYear] });
       setIsDialogOpen(false);
       setAssignments({});
       form.reset();
@@ -174,7 +168,7 @@ export default function LeaderSchedulesPage() {
       return schedule;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/schedules", selectedMonth, selectedYear] });
       setIsDialogOpen(false);
       setEditingSchedule(null);
       setAssignments({});
@@ -196,7 +190,7 @@ export default function LeaderSchedulesPage() {
   const deleteScheduleMutation = useMutation({
     mutationFn: async (id: number) => apiRequest("DELETE", `/api/schedules/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/schedules", selectedMonth, selectedYear] });
       toast({
         title: "Escala removida",
         description: "A escala foi removida com sucesso.",

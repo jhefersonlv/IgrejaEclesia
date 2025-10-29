@@ -461,13 +461,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSchedule(data: InsertSchedule): Promise<Schedule> {
-    const result = await db.insert(schedules).values(data).returning();
+    // Adiciona 1 ao mês porque getMonth() é 0-indexed (0 para Janeiro)
+    const date = new Date(data.data);
+    const mes = date.getUTCMonth() + 1;
+    const ano = date.getUTCFullYear();
+
+    const result = await db.insert(schedules).values({ ...data, mes, ano }).returning();
     return result[0];
   }
 
   async updateSchedule(id: number, data: Partial<InsertSchedule>): Promise<Schedule> {
+    const updateData = { ...data };
+
+    // Se a data for alterada, recalcula mês e ano
+    if (data.data) {
+      const date = new Date(data.data);
+      updateData.mes = date.getUTCMonth() + 1;
+      updateData.ano = date.getUTCFullYear();
+    }
+
     const result = await db.update(schedules)
-      .set(data)
+      .set(updateData)
       .where(eq(schedules.id, id))
       .returning();
     return result[0];
