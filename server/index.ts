@@ -1,6 +1,5 @@
 import { db } from "./db"; // <-- deve ficar no topo
 import express, { type Request, Response, NextFunction } from "express";
-import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log, useViteCatchall } from "./vite";
 //---------------------------------------------------------
@@ -71,17 +70,15 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  const server = createServer(app);
-
   if (app.get("env") === "development") {
-    await setupVite(app, server);
+    await setupVite(app, app as any);
     useViteCatchall(app);
   } else {
     serveStatic(app);
   }
 
-  const port = parseInt(process.env.PORT || '5173', 10);
-  server.listen(port, "0.0.0.0", () => {
+  const port = parseInt(process.env.PORT || '5000', 10);
+  app.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
   });
 })();
