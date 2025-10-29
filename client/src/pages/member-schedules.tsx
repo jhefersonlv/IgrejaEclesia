@@ -1,15 +1,20 @@
 import { useQuery, useQueries } from "@tanstack/react-query";
 import type { Schedule, ScheduleAssignment, User } from "@shared/schema";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Music, Users as UsersIcon } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 
 interface ScheduleWithAssignments extends Schedule {
-  assignments: (ScheduleAssignment & { user?: User })[];
+  assignments: (ScheduleAssignment & { user?: User | null })[];
 }
 
 const POSICOES_LOUVOR = [
@@ -38,45 +43,46 @@ export default function MemberSchedulesPage() {
     queryKey: ["/api/admin/members"],
   });
 
-  // Fetch assignments for each schedule using useQueries
+  // 🔹 Busca os detalhes (assignments) de cada escala
   const scheduleDetailsQueries = useQueries({
-    queries: schedules.map(schedule => ({
+    queries: schedules.map((schedule) => ({
       queryKey: ["/api/schedules/details", schedule.id],
       queryFn: async () => {
-        const response = await fetch(`/api/schedules/details/${schedule.id}`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
+        const res = await fetch(`/api/schedules/details/${schedule.id}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         });
-        if (!response.ok) throw new Error("Failed to fetch schedule details");
-        return response.json();
+        if (!res.ok) throw new Error("Falha ao carregar detalhes da escala");
+        return res.json();
       },
       enabled: schedules.length > 0,
     })),
   });
 
-  const schedulesWithAssignments: ScheduleWithAssignments[] = schedules.map((schedule, index) => {
-    const details = scheduleDetailsQueries[index]?.data as any;
+  // 🔹 Junta escalas + assignments + usuários
+  const schedulesWithAssignments: ScheduleWithAssignments[] = schedules.map((schedule, i) => {
+    const details = scheduleDetailsQueries[i]?.data as any;
     const assignments = details?.assignments || [];
-    
+
     const assignmentsWithUsers = assignments.map((assignment: ScheduleAssignment) => ({
       ...assignment,
-      user: allUsers.find(u => u.id === assignment.userId),
+      user: allUsers.find((u) => u.id === assignment.userId) || null,
     }));
 
-    return {
-      ...schedule,
-      assignments: assignmentsWithUsers,
-    };
+    return { ...schedule, assignments: assignmentsWithUsers };
   });
 
-  // Filter schedules based on user's ministries
-  const hasLouvorMinistry = currentUser?.ministerioLouvor || false;
-  const hasObreiroMinistry = currentUser?.ministerioObreiro || false;
+  // 🔹 Filtros de ministério
+  const hasLouvorMinistry = currentUser?.ministerioLouvor ?? false;
+  const hasObreiroMinistry = currentUser?.ministerioObreiro ?? false;
   const hasAnyMinistry = hasLouvorMinistry || hasObreiroMinistry;
-  
-  const louvorSchedules = hasLouvorMinistry ? schedulesWithAssignments.filter(s => s.tipo === "louvor") : [];
-  const obreirosSchedules = hasObreiroMinistry ? schedulesWithAssignments.filter(s => s.tipo === "obreiros") : [];
+
+  const louvorSchedules = hasLouvorMinistry
+    ? schedulesWithAssignments.filter((s) => s.tipo === "louvor")
+    : [];
+
+  const obreirosSchedules = hasObreiroMinistry
+    ? schedulesWithAssignments.filter((s) => s.tipo === "obreiros")
+    : [];
 
   const months = [
     { value: 1, label: "Janeiro" },
@@ -97,30 +103,30 @@ export default function MemberSchedulesPage() {
     <div className="space-y-8">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="font-sans text-4xl font-semibold mb-2" data-testid="text-schedules-title">
+          <h1 className="font-sans text-4xl font-semibold mb-2">
             Escalas
           </h1>
           <p className="text-lg text-muted-foreground">
             Visualize as escalas de louvor e obreiros
           </p>
         </div>
-        
+
         <div className="flex gap-2">
           <select
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
             className="px-3 py-2 border rounded-md"
-            data-testid="select-month"
           >
-            {months.map(m => (
-              <option key={m.value} value={m.value}>{m.label}</option>
+            {months.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
             ))}
           </select>
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(parseInt(e.target.value))}
             className="px-3 py-2 border rounded-md"
-            data-testid="select-year"
           >
             <option value={2024}>2024</option>
             <option value={2025}>2025</option>
@@ -129,7 +135,7 @@ export default function MemberSchedulesPage() {
         </div>
       </div>
 
-      {(isLoadingUser || isLoadingSchedules) ? (
+      {isLoadingUser || isLoadingSchedules ? (
         <p className="text-center text-muted-foreground py-8">Carregando escalas...</p>
       ) : !hasAnyMinistry ? (
         <Card>
@@ -146,99 +152,104 @@ export default function MemberSchedulesPage() {
         <div className="space-y-8">
           {/* Escala de Louvor */}
           {hasLouvorMinistry && (
-          <div>
-            <h2 className="font-sans text-2xl font-semibold mb-4 flex items-center gap-2">
-              <Music className="w-6 h-6 text-primary" />
-              Escala de Louvor
-            </h2>
-            {louvorSchedules.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {louvorSchedules.map((schedule) => (
-                  <Card key={schedule.id}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4" />
-                        {format(new Date(schedule.data), "dd 'de' MMMM", { locale: ptBR })}
-                      </CardTitle>
-                      {schedule.observacoes && (
-                        <CardDescription>{schedule.observacoes}</CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {POSICOES_LOUVOR.map(posicao => {
-                          const assignment = schedule.assignments.find(a => a.posicao === posicao.key);
-                          return (
-                            <div key={posicao.key} className="flex justify-between items-center">
-                              <span className="text-sm font-medium">{posicao.label}:</span>
-                              {assignment?.user ? (
-                                <Badge variant="default">{assignment.user.nome}</Badge>
-                              ) : (
-                                <Badge variant="outline">Vazio</Badge>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  Nenhuma escala de louvor cadastrada para este mês
-                </CardContent>
-              </Card>
-            )}
-          </div>
+            <div>
+              <h2 className="font-sans text-2xl font-semibold mb-4 flex items-center gap-2">
+                <Music className="w-6 h-6 text-primary" />
+                Escala de Louvor
+              </h2>
+              {louvorSchedules.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {louvorSchedules.map((schedule) => (
+                    <Card key={schedule.id}>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4" />
+                          {format(new Date(schedule.data), "dd 'de' MMMM", { locale: ptBR })}
+                        </CardTitle>
+                        {schedule.observacoes && (
+                          <CardDescription>{schedule.observacoes}</CardDescription>
+                        )}
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {POSICOES_LOUVOR.map((posicao) => {
+                            const assignment = schedule.assignments.find(
+                              (a) => a.posicao === posicao.key
+                            );
+                            return (
+                              <div key={posicao.key} className="flex justify-between items-center">
+                                <span className="text-sm font-medium">{posicao.label}:</span>
+                                {assignment?.user ? (
+                                  <Badge variant="default">{assignment.user.nome}</Badge>
+                                ) : (
+                                  <Badge variant="outline">Vazio</Badge>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    Nenhuma escala de louvor cadastrada para este mês
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           )}
 
           {/* Escala de Obreiros */}
           {hasObreiroMinistry && (
-          <div>
-            <h2 className="font-sans text-2xl font-semibold mb-4 flex items-center gap-2">
-              <UsersIcon className="w-6 h-6 text-primary" />
-              Escala de Obreiros
-            </h2>
-            {obreirosSchedules.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                {obreirosSchedules.map((schedule) => (
-                  <Card key={schedule.id}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4" />
-                        {format(new Date(schedule.data), "dd 'de' MMMM", { locale: ptBR })}
-                      </CardTitle>
-                      {schedule.observacoes && (
-                        <CardDescription>{schedule.observacoes}</CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {schedule.assignments.map((assignment, idx) => (
-                          <div key={assignment.id} className="flex items-center gap-2">
-                            <span className="text-sm">Obreiro {idx + 1}:</span>
-                            {assignment.user ? (
-                              <Badge variant="default">{assignment.user.nome}</Badge>
-                            ) : (
-                              <Badge variant="outline">Não atribuído</Badge>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  Nenhuma escala de obreiros cadastrada para este mês
-                </CardContent>
-              </Card>
-            )}
-          </div>
+            <div>
+              <h2 className="font-sans text-2xl font-semibold mb-4 flex items-center gap-2">
+                <UsersIcon className="w-6 h-6 text-primary" />
+                Escala de Obreiros
+              </h2>
+              {obreirosSchedules.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {obreirosSchedules.map((schedule) => (
+                    <Card key={schedule.id}>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4" />
+                          {format(new Date(schedule.data), "dd 'de' MMMM", { locale: ptBR })}
+                        </CardTitle>
+                        {schedule.observacoes && (
+                          <CardDescription>{schedule.observacoes}</CardDescription>
+                        )}
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {Array.from({ length: 4 }).map((_, idx) => {
+                            const assignment = schedule.assignments[idx];
+                            return (
+                              <div key={idx} className="flex items-center gap-2">
+                                <span className="text-sm">Obreiro {idx + 1}:</span>
+                                {assignment?.user ? (
+                                  <Badge variant="default">{assignment.user.nome}</Badge>
+                                ) : (
+                                  <Badge variant="outline">Não atribuído</Badge>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    Nenhuma escala de obreiros cadastrada para este mês
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           )}
         </div>
       )}
