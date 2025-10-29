@@ -138,27 +138,27 @@ export default function MemberSchedulesPage() {
                       <CardContent>
                         <div className="space-y-2">
                           {POSICOES_LOUVOR.map((posicao) => {
-                            const assignment = schedule.assignments.find(
-                              (a) => a.posicao === posicao.key
-                            );
-                            return (
-                              <div key={posicao.key} className="flex justify-between items-center">
-                                <span className="text-sm font-medium">{posicao.label}:</span>
-                                <Badge
-                                  variant={
-                                    assignment?.userId === currentUser?.id ? "default" : "outline"
-                                  }
-                                  className={
-                                    assignment?.userId === currentUser?.id
-                                      ? "font-bold"
-                                      : ""
-                                  }
-                                >
-                                  {assignment?.user?.nome ?? "Vazio"}
-                                </Badge>
-                              </div>
-                            );
-                          })}
+  const assignment = (schedule.assignments || []).find(
+    (a) => a.posicao === posicao.key
+  );
+  return (
+    <div key={posicao.key} className="flex justify-between items-center">
+      <span className="text-sm font-medium">{posicao.label}:</span>
+      <Badge
+        variant={
+          assignment?.userId === currentUser?.id ? "default" : "outline"
+        }
+        className={
+          assignment?.userId === currentUser?.id
+            ? "font-bold"
+            : ""
+        }
+      >
+        {assignment?.user?.nome ?? "Vazio"}
+      </Badge>
+    </div>
+  );
+})}
                         </div>
                       </CardContent>
                     </Card>
@@ -196,24 +196,24 @@ export default function MemberSchedulesPage() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-2">
-                          {schedule.assignments.map((assignment, idx) => (
-                            <div key={idx} className="flex items-center gap-2">
-                              <span className="text-sm">Obreiro {idx + 1}:</span>
-                              <Badge
-                                variant={
-                                  assignment?.userId === currentUser?.id ? "default" : "outline"
-                                }
-                                className={
-                                  assignment?.userId === currentUser?.id
-                                    ? "font-bold"
-                                    : ""
-                                }
-                              >
-                                {assignment.user?.nome ?? "Não atribuído"}
-                              </Badge>
-                            </div>
-                          ))}
-                        </div>
+  {(schedule.assignments || []).map((assignment, idx) => (
+    <div key={idx} className="flex items-center gap-2">
+      <span className="text-sm">Obreiro {idx + 1}:</span>
+      <Badge
+        variant={
+          assignment?.userId === currentUser?.id ? "default" : "outline"
+        }
+        className={
+          assignment?.userId === currentUser?.id
+            ? "font-bold"
+            : ""
+        }
+      >
+        {assignment?.user?.nome ?? "Não atribuído"}
+      </Badge>
+    </div>
+  ))}
+</div>
                       </CardContent>
                     </Card>
                   ))}

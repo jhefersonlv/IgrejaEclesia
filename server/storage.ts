@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments, questions, lessonCompletions, courseEnrollments } from "@shared/schema";
 import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment, Question, InsertQuestion, LessonCompletion, InsertLessonCompletion, CourseEnrollment } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 // Definição da interface que será usada no retorno
@@ -62,10 +62,14 @@ export interface IStorage {
   // Schedules
   getAllSchedules(): Promise<ScheduleWithAssignments[]>;
   getSchedulesByMonth(mes: number, ano: number): Promise<Schedule[]>;
+  getUpcomingSchedules(): Promise<Schedule[]>; 
   getScheduleById(id: number): Promise<Schedule | null>;
   createSchedule(data: InsertSchedule): Promise<Schedule>;
   updateSchedule(id: number, data: Partial<InsertSchedule>): Promise<Schedule>;
   deleteSchedule(id: number): Promise<void>;
+
+  // Utility for debugging/admin
+  getAllRawSchedules(): Promise<Schedule[]>;
   
   // Schedule Assignments
   getAssignmentsBySchedule(scheduleId: number): Promise<ScheduleAssignment[]>;
@@ -149,7 +153,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUser(id: number, data: Partial<InsertUser>): Promise<User> {
-    // If password is provided, hash it
+    // Se a senha for fornecida, faça o hash
     const updateData = { ...data };
     if (updateData.senha) {
       updateData.senha = await bcrypt.hash(updateData.senha, 10);
@@ -200,6 +204,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCourse(id: number): Promise<void> {
+    // Delete as lições dependentes primeiro (assumindo que o delete em cascata não está configurado)
     await db.delete(lessons).where(eq(lessons.cursoId, id));
     await db.delete(courses).where(eq(courses.id, id));
   }
@@ -268,7 +273,7 @@ export class DatabaseStorage implements IStorage {
     
     const totalMembers = allUsers.length;
     
-    // Calculate age groups
+    // Calcula grupos de idade
     const ageGroups: Record<string, number> = {
       "18-25": 0,
       "26-35": 0,
@@ -298,7 +303,7 @@ export class DatabaseStorage implements IStorage {
       count,
     }));
     
-    // Count by neighborhood
+    // Contagem por bairro
     const neighborhoodCounts: Record<string, number> = {};
     allUsers.forEach(user => {
       if (user.bairro) {
@@ -311,7 +316,7 @@ export class DatabaseStorage implements IStorage {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
     
-    // Count by profession
+    // Contagem por profissão
     const professionCounts: Record<string, number> = {};
     allUsers.forEach(user => {
       if (user.profissao) {
@@ -324,7 +329,7 @@ export class DatabaseStorage implements IStorage {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
     
-    // Count members joined in last 30 days
+    // Conta membros que entraram nos últimos 30 dias
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const recentMembersCount = allUsers.filter(user => 
@@ -365,10 +370,12 @@ export class DatabaseStorage implements IStorage {
       }
 
       if (assignment) {
+        // Remove a senha do objeto de usuário antes de atribuir
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { senha, ...userWithoutPassword } = user || {};
         scheduleMap[schedule.id].assignments.push({
           ...assignment,
+          // Convertemos para User, pois todos os campos necessários estão presentes, mesmo que 'senha' esteja faltando
           user: user ? (userWithoutPassword as User) : null,
         });
       }
@@ -377,9 +384,55 @@ export class DatabaseStorage implements IStorage {
     return Object.values(scheduleMap);
   }
 
+  // CORREÇÃO APLICADA AQUI: Usando o campo 'data' (que deve ser DATE ou string 'YYYY-MM-DD')
   async getSchedulesByMonth(mes: number, ano: number): Promise<Schedule[]> {
+    // 1. Constrói a string de mês formatada (ex: '10' para Outubro)
+    const mesFormatado = String(mes).padStart(2, '0');
+    
+    // 2. Constrói a string de data de início para o 1º dia do mês
+    const inicioDoMes = `${ano}-${mesFormatado}-01`;
+    
+    // 3. Constrói a string de data do FIM do MÊS (YYYY-MM-DD)
+    // No PostgreSQL (usado pelo Neon), podemos usar funções SQL para calcular a data
+    // do último dia do mês, garantindo a precisão da comparação.
+    // Primeiro, calcula o primeiro dia do mês SEGUINTE e subtrai 1 dia.
+    const primeiroDiaDoProximoMes = sql<string>`(${ano} || '-' || (${mes} + 1) || '-01')::date`;
+    const finalDoMes = sql<string>`
+      CASE 
+        WHEN ${mes} = 12 THEN ((${ano} + 1) || '-01-01')::date - interval '1 day' -- Se for Dezembro, vai para o 1º de Janeiro do ano seguinte e subtrai 1 dia
+        ELSE ${primeiroDiaDoProximoMes} - interval '1 day'
+      END
+    `;
+
+
     return await db.select().from(schedules)
-      .where(and(eq(schedules.mes, mes), eq(schedules.ano, ano)))
+      .where(
+        // Filtra a data da escala para estar DENTRO do mês e ano fornecidos.
+        and(
+          // data >= 1º dia do mês (inícioDoMes)
+          gte(schedules.data, inicioDoMes),
+          // data <= Último dia do mês (finalDoMes calculado pelo SQL)
+          sql`${schedules.data}::date <= ${finalDoMes}`
+        )
+      )
+      .orderBy(schedules.data);
+  }
+
+  // NOVO MÉTODO: Retorna todas as escalas futuras (a partir de hoje)
+  async getUpcomingSchedules(): Promise<Schedule[]> {
+    // Obter a data de hoje formatada como 'YYYY-MM-DD'
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayDateString = `${year}-${month}-${day}`;
+
+    // Filtra escalas onde a coluna 'data' (que deve ser um DATE ou TEXT no formato 'YYYY-MM-DD')
+    // é maior ou igual à data de hoje.
+    return await db.select().from(schedules)
+      // Usamos gte (Greater Than or Equal) para filtrar por datas futuras,
+      // assumindo que a coluna `data` é compatível com comparação de strings ou tipo Date/Timestamp.
+      .where(gte(schedules.data, todayDateString)) 
       .orderBy(schedules.data);
   }
 
@@ -403,6 +456,11 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSchedule(id: number): Promise<void> {
     await db.delete(schedules).where(eq(schedules.id, id));
+  }
+
+  // Utility for debugging/admin
+  async getAllRawSchedules(): Promise<Schedule[]> {
+    return await db.select().from(schedules).orderBy(schedules.data);
   }
 
   // Schedule Assignments
@@ -520,6 +578,7 @@ export class DatabaseStorage implements IStorage {
       ));
 
     const completedLessonIds = new Set(completions.map(c => c.lessonId));
+    // Filtra as conclusões para incluir apenas lições pertencentes ao curso fornecido
     const completedLessons = courseLessons.filter(l => completedLessonIds.has(l.id)).length;
     const progress = Math.round((completedLessons / totalLessons) * 100);
 
@@ -539,6 +598,7 @@ export class DatabaseStorage implements IStorage {
 
     const results = await Promise.all(
       allUsers.map(async (user) => {
+        // Busca todas as conclusões para o usuário, independentemente do curso
         const completions = await db.select()
           .from(lessonCompletions)
           .where(and(
@@ -547,6 +607,7 @@ export class DatabaseStorage implements IStorage {
           ));
 
         const completedLessonIds = new Set(completions.map(c => c.lessonId));
+        // Conta quantas lições do curso estão no conjunto de concluídas
         const completedLessons = lessonIds.filter(id => completedLessonIds.has(id)).length;
         const progress = Math.round((completedLessons / totalLessons) * 100);
 
@@ -559,32 +620,32 @@ export class DatabaseStorage implements IStorage {
       })
     );
 
-    return results.filter(r => r.completedLessons > 0); // Only return users with progress
+    return results.filter(r => r.completedLessons > 0); // Retorna apenas usuários com progresso
   }
 
   async getCourseAnalytics() {
     const allCourses = await this.getAllCourses();
     const totalCourses = allCourses.length;
     
-    // Fetch all lessons and all completions ONCE
+    // Busca todas as lições e todas as conclusões UMA VEZ para eficiência
     const allLessons = await db.select().from(lessons);
     const allCompletions = await db.select()
       .from(lessonCompletions)
       .where(eq(lessonCompletions.completed, true));
     
-    // Group lessons by course ID for O(1) lookup
+    // Agrupa lições por ID do curso para pesquisa O(1)
     const lessonsByCourse = new Map<number, typeof allLessons>();
     const lessonToCourse = new Map<number, number>();
     
     allLessons.forEach(lesson => {
-      if (!lessonsByCourse.has(lesson.courseId)) {
-        lessonsByCourse.set(lesson.courseId, []);
+      if (!lessonsByCourse.has(lesson.cursoId)) {
+        lessonsByCourse.set(lesson.cursoId, []);
       }
-      lessonsByCourse.get(lesson.courseId)!.push(lesson);
-      lessonToCourse.set(lesson.id, lesson.courseId);
+      lessonsByCourse.get(lesson.cursoId)!.push(lesson);
+      lessonToCourse.set(lesson.id, lesson.cursoId);
     });
     
-    // Group completions by course ID in ONE pass (O(n) instead of O(n*m))
+    // Agrupa conclusões por ID do curso em UMA passagem
     const completionsByCourse = new Map<number, typeof allCompletions>();
     allCompletions.forEach(completion => {
       const courseId = lessonToCourse.get(completion.lessonId);
@@ -600,7 +661,7 @@ export class DatabaseStorage implements IStorage {
     const totalCompletions = allCompletions.length;
     const courseStats = [];
 
-    // Now iterate courses and use precomputed maps for O(1) access
+    // Agora itera os cursos e usa mapas pré-calculados para acesso rápido
     for (const course of allCourses) {
       const courseLessons = lessonsByCourse.get(course.id) || [];
 
@@ -619,7 +680,7 @@ export class DatabaseStorage implements IStorage {
 
       const courseCompletions = completionsByCourse.get(course.id) || [];
 
-      // Count unique users who completed at least one lesson
+      // Conta usuários únicos que completaram pelo menos uma lição neste curso
       const userCompletionMap = new Map<number, number>();
       courseCompletions.forEach(c => {
         userCompletionMap.set(c.userId, (userCompletionMap.get(c.userId) || 0) + 1);
@@ -679,6 +740,8 @@ export class DatabaseStorage implements IStorage {
       .where(eq(courseEnrollments.courseId, courseId))
       .leftJoin(users, eq(courseEnrollments.userId, users.id));
 
+    // Exclui o campo sensível 'senha' manualmente, se necessário
+    // Uma vez que o join seleciona todos os campos de 'users', confiamos que o consumidor não exporá 'senha'.
     return enrollments.map(e => e.users).filter((u): u is User => u !== null);
   }
 

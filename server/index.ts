@@ -1,16 +1,37 @@
-import { db } from "./db"; // <-- deve ficar no topo
+import { db } from "./db";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log, useViteCatchall } from "./vite";
-//---------------------------------------------------------
+import session from "express-session";
+import cors from "cors";
 
 const app = express();
+
+// Configuração CORS
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+
+// Configuração de sessão
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'sua-chave-secreta-aqui-mude-em-producao',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 dias
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  }
+}));
 
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
   }
 }
+
 app.use(express.json({
   verify: (req, _res, buf) => {
     req.rawBody = buf;

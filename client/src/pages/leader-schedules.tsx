@@ -268,16 +268,16 @@ export default function LeaderSchedulesPage() {
                   </CardTitle>
                   {schedule.observacoes && <CardDescription>{schedule.observacoes}</CardDescription>}
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  {schedule.assignments.map((assign) => (
-                    <div key={assign.id} className="flex justify-between items-center">
-                      <span className="text-sm font-medium">{POSICOES_LABELS[assign.posicao] || assign.posicao}:</span>
-                      <Badge variant={assign.user ? "default" : "outline"}>
-                        {assign.user ? assign.user.nome : "Vazio"}
-                      </Badge>
-                    </div>
-                  ))}
-                </CardContent>
+               <CardContent className="space-y-2">
+  {(schedule.assignments || []).map((assign) => (
+    <div key={assign.id} className="flex justify-between items-center">
+      <span className="text-sm font-medium">{POSICOES_LABELS[assign.posicao] || assign.posicao}:</span>
+      <Badge variant={assign.user ? "default" : "outline"}>
+        {assign.user ? assign.user.nome : "Vazio"}
+      </Badge>
+    </div>
+  ))}
+</CardContent>
               </Card>
             ))}
           </div>
@@ -316,15 +316,15 @@ export default function LeaderSchedulesPage() {
                   {schedule.observacoes && <CardDescription>{schedule.observacoes}</CardDescription>}
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {schedule.assignments.map((assign, index) => (
-                    <div key={assign.id} className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Obreiro {index + 1}:</span>
-                      <Badge variant={assign.user ? "default" : "outline"}>
-                        {assign.user ? assign.user.nome : "Vazio"}
-                      </Badge>
-                    </div>
-                  ))}
-                </CardContent>
+  {(schedule.assignments || []).map((assign, index) => (
+    <div key={assign.id} className="flex justify-between items-center">
+      <span className="text-sm font-medium">Obreiro {index + 1}:</span>
+      <Badge variant={assign.user ? "default" : "outline"}>
+        {assign.user ? assign.user.nome : "Vazio"}
+      </Badge>
+    </div>
+  ))}
+</CardContent>
               </Card>
             ))}
           </div>
