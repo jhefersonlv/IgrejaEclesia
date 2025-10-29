@@ -1,20 +1,15 @@
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { Schedule, ScheduleAssignment, User } from "@shared/schema";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Music, Users as UsersIcon } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";
 
+//  Interface atualizada para corresponder ao novo retorno da API
 interface ScheduleWithAssignments extends Schedule {
-  assignments: (ScheduleAssignment & { user?: User | null })[];
+  assignments: (ScheduleAssignment & { user: User | null })[];
 }
 
 const POSICOES_LOUVOR = [
@@ -31,47 +26,17 @@ export default function MemberSchedulesPage() {
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
 
-  const { data: currentUser, isLoading: isLoadingUser } = useQuery<User>({
+  const { data: currentUser, isPending: isPendingUser } = useQuery<User>({
     queryKey: ["/api/auth/me"],
   });
 
-  const { data: schedules = [], isLoading: isLoadingSchedules } = useQuery<Schedule[]>({
-    queryKey: ["/api/schedules", selectedMonth, selectedYear],
-  });
+  // Hook unificado para buscar escalas já com assignments e users
+  const { data: schedulesWithAssignments = [], isPending: isPendingSchedules } =
+    useQuery<ScheduleWithAssignments[]>({
+      queryKey: ["/api/schedules", selectedMonth, selectedYear],
+    });
 
-  const { data: allUsers = [] } = useQuery<User[]>({
-    queryKey: ["/api/admin/members"],
-  });
-
-  // 🔹 Busca os detalhes (assignments) de cada escala
-  const scheduleDetailsQueries = useQueries({
-    queries: schedules.map((schedule) => ({
-      queryKey: ["/api/schedules/details", schedule.id],
-      queryFn: async () => {
-        const res = await fetch(`/api/schedules/details/${schedule.id}`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        });
-        if (!res.ok) throw new Error("Falha ao carregar detalhes da escala");
-        return res.json();
-      },
-      enabled: schedules.length > 0,
-    })),
-  });
-
-  // 🔹 Junta escalas + assignments + usuários
-  const schedulesWithAssignments: ScheduleWithAssignments[] = schedules.map((schedule, i) => {
-    const details = scheduleDetailsQueries[i]?.data as any;
-    const assignments = details?.assignments || [];
-
-    const assignmentsWithUsers = assignments.map((assignment: ScheduleAssignment) => ({
-      ...assignment,
-      user: allUsers.find((u) => u.id === assignment.userId) || null,
-    }));
-
-    return { ...schedule, assignments: assignmentsWithUsers };
-  });
-
-  // 🔹 Filtros de ministério
+  // Filtros de ministério
   const hasLouvorMinistry = currentUser?.ministerioLouvor ?? false;
   const hasObreiroMinistry = currentUser?.ministerioObreiro ?? false;
   const hasAnyMinistry = hasLouvorMinistry || hasObreiroMinistry;
@@ -135,7 +100,7 @@ export default function MemberSchedulesPage() {
         </div>
       </div>
 
-      {isLoadingUser || isLoadingSchedules ? (
+      {isPendingUser || isPendingSchedules ? (
         <p className="text-center text-muted-foreground py-8">Carregando escalas...</p>
       ) : !hasAnyMinistry ? (
         <Card>
@@ -179,11 +144,18 @@ export default function MemberSchedulesPage() {
                             return (
                               <div key={posicao.key} className="flex justify-between items-center">
                                 <span className="text-sm font-medium">{posicao.label}:</span>
-                                {assignment?.user ? (
-                                  <Badge variant="default">{assignment.user.nome}</Badge>
-                                ) : (
-                                  <Badge variant="outline">Vazio</Badge>
-                                )}
+                                <Badge
+                                  variant={
+                                    assignment?.userId === currentUser?.id ? "default" : "outline"
+                                  }
+                                  className={
+                                    assignment?.userId === currentUser?.id
+                                      ? "font-bold"
+                                      : ""
+                                  }
+                                >
+                                  {assignment?.user?.nome ?? "Vazio"}
+                                </Badge>
                               </div>
                             );
                           })}
@@ -224,19 +196,23 @@ export default function MemberSchedulesPage() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-2">
-                          {Array.from({ length: 4 }).map((_, idx) => {
-                            const assignment = schedule.assignments[idx];
-                            return (
-                              <div key={idx} className="flex items-center gap-2">
-                                <span className="text-sm">Obreiro {idx + 1}:</span>
-                                {assignment?.user ? (
-                                  <Badge variant="default">{assignment.user.nome}</Badge>
-                                ) : (
-                                  <Badge variant="outline">Não atribuído</Badge>
-                                )}
-                              </div>
-                            );
-                          })}
+                          {schedule.assignments.map((assignment, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="text-sm">Obreiro {idx + 1}:</span>
+                              <Badge
+                                variant={
+                                  assignment?.userId === currentUser?.id ? "default" : "outline"
+                                }
+                                className={
+                                  assignment?.userId === currentUser?.id
+                                    ? "font-bold"
+                                    : ""
+                                }
+                              >
+                                {assignment.user?.nome ?? "Não atribuído"}
+                              </Badge>
+                            </div>
+                          ))}
                         </div>
                       </CardContent>
                     </Card>

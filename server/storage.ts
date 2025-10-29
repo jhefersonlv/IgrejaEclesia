@@ -4,6 +4,11 @@ import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
+// Definição da interface que será usada no retorno
+export interface ScheduleWithAssignments extends Schedule {
+  assignments: (ScheduleAssignment & { user: User | null })[];
+}
+
 export interface IStorage {
   // Auth
   getUserByEmail(email: string): Promise<User | null>;
@@ -55,7 +60,7 @@ export interface IStorage {
   }>;
   
   // Schedules
-  getAllSchedules(): Promise<Schedule[]>;
+  getAllSchedules(): Promise<ScheduleWithAssignments[]>;
   getSchedulesByMonth(mes: number, ano: number): Promise<Schedule[]>;
   getScheduleById(id: number): Promise<Schedule | null>;
   createSchedule(data: InsertSchedule): Promise<Schedule>;
@@ -336,8 +341,40 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Schedules
-  async getAllSchedules(): Promise<Schedule[]> {
-    return await db.select().from(schedules).orderBy(schedules.data);
+  async getAllSchedules(): Promise<ScheduleWithAssignments[]> {
+    const rows = await db
+      .select({
+        schedule: schedules,
+        assignment: scheduleAssignments,
+        user: users,
+      })
+      .from(schedules)
+      .leftJoin(scheduleAssignments, eq(schedules.id, scheduleAssignments.scheduleId))
+      .leftJoin(users, eq(scheduleAssignments.userId, users.id))
+      .orderBy(schedules.data);
+
+    const scheduleMap: Record<number, ScheduleWithAssignments> = {};
+
+    for (const row of rows) {
+      const { schedule, assignment, user } = row;
+      if (!scheduleMap[schedule.id]) {
+        scheduleMap[schedule.id] = {
+          ...schedule,
+          assignments: [],
+        };
+      }
+
+      if (assignment) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { senha, ...userWithoutPassword } = user || {};
+        scheduleMap[schedule.id].assignments.push({
+          ...assignment,
+          user: user ? (userWithoutPassword as User) : null,
+        });
+      }
+    }
+
+    return Object.values(scheduleMap);
   }
 
   async getSchedulesByMonth(mes: number, ano: number): Promise<Schedule[]> {
