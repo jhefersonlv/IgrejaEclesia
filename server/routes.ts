@@ -1,15 +1,11 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
-import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema, insertQuestionSchema, User } from "@shared/schema";
+import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema, insertQuestionSchema } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 
 const JWT_SECRET = process.env.SESSION_SECRET || "your-secret-key-change-in-production";
-
-interface AuthRequest extends Request {
-  user?: User;
-}
 
 // Middleware to verify JWT token
 async function authenticateToken(req: Request, res: Response, next: NextFunction) {
@@ -100,7 +96,7 @@ export function registerRoutes(app: Express) {
   });
 
   // Member Routes (Authenticated)
-  app.get("/api/courses", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.get("/api/courses", authenticateToken, async (req: Request, res: Response) => {
     try {
       const courses = await storage.getAllCourses();
       res.json(courses);
@@ -110,42 +106,9 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  app.get("/api/courses/:id", authenticateToken, async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const course = await storage.getCourseById(id);
-      if (!course) {
-        return res.status(404).json({ message: "Curso não encontrado" });
-      }
-      res.json(course);
-    } catch (error) {
-      console.error("Get course error:", error);
-      res.status(500).json({ message: "Erro ao buscar curso" });
-    }
-  });
-
-  app.get("/api/my-courses", authenticateToken, async (req: Request, res: Response) => {
-    try {
-      const userId = (req as any).userId;
-      const courses = await storage.getEnrolledCourses(userId);
-      res.json(courses);
-    } catch (error) {
-      console.error("Get my courses error:", error);
-      res.status(500).json({ message: "Erro ao buscar seus cursos" });
-    }
-  });
-
   app.get("/api/courses/:id/lessons", authenticateToken, async (req: Request, res: Response) => {
     try {
       const courseId = parseInt(req.params.id);
-      const userId = (req as any).userId;
-      const user = (req as any).user;
-
-      const isEnrolled = await storage.isUserEnrolled(userId, courseId);
-      if (!isEnrolled && !user.isAdmin) {
-        return res.status(403).json({ message: "Você não está matriculado neste curso" });
-      }
-
       const lessons = await storage.getLessonsByCourseId(courseId);
       res.json(lessons);
     } catch (error) {
@@ -282,51 +245,6 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error("Delete course error:", error);
       res.status(500).json({ message: "Erro ao deletar curso" });
-    }
-  });
-
-  // Admin Routes - Course Enrollments
-  app.get("/api/admin/courses/:courseId/enrollments", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-    try {
-      const courseId = parseInt(req.params.courseId);
-      const enrolledUsers = await storage.getEnrollmentsByCourse(courseId);
-      res.json(enrolledUsers);
-    } catch (error) {
-      console.error("Get enrollments error:", error);
-      res.status(500).json({ message: "Erro ao buscar matrículas" });
-    }
-  });
-
-  app.post("/api/admin/courses/:courseId/enrollments", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-    try {
-      const courseId = parseInt(req.params.courseId);
-      const { userId } = z.object({ userId: z.number() }).parse(req.body);
-
-      const user = await storage.getUserById(userId);
-      if (!user) {
-        return res.status(404).json({ message: "Usuário não encontrado" });
-      }
-
-      await storage.createEnrollment(userId, courseId);
-      res.status(201).send();
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
-      }
-      console.error("Create enrollment error:", error);
-      res.status(500).json({ message: "Erro ao matricular usuário" });
-    }
-  });
-
-  app.delete("/api/admin/courses/:courseId/enrollments/:userId", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-    try {
-      const courseId = parseInt(req.params.courseId);
-      const userId = parseInt(req.params.userId);
-      await storage.deleteEnrollment(userId, courseId);
-      res.status(204).send();
-    } catch (error) {
-      console.error("Delete enrollment error:", error);
-      res.status(500).json({ message: "Erro ao remover matrícula" });
     }
   });
 
@@ -620,6 +538,30 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Get users by ministry (for suggestions)
+  app.get("/api/users/ministry/:ministerio", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const ministerio = req.params.ministerio;
+      const users = await storage.getUsersByMinistry(ministerio);
+      res.json(users);
+    } catch (error) {
+      console.error("Get users by ministry error:", error);
+      res.status(500).json({ message: "Erro ao buscar membros" });
+    }
+  });
+
+  // Update user ministry (admin only)
+  app.patch("/api/admin/members/:id/ministry", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { ministerio, isLider } = req.body;
+      const updatedUser = await storage.updateUserMinistry(id, ministerio, isLider);
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Update user ministry error:", error);
+      res.status(500).json({ message: "Erro ao atualizar ministério" });
+    }
+  });
 
   // ========== QUIZ ROUTES ==========
   

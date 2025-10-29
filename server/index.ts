@@ -11,7 +11,11 @@ declare module 'http' {
     rawBody: unknown
   }
 }
-app.use(express.json());
+app.use(express.json({
+  verify: (req, _res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
@@ -56,14 +60,7 @@ app.use((req, res, next) => {
     }
   });
 
-  if (app.get("env") === "development") {
-    await setupVite(app, app as any, () => {
-      registerRoutes(app);
-    });
-  } else {
-    registerRoutes(app);
-    serveStatic(app);
-  }
+  registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
