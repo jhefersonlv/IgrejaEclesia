@@ -233,7 +233,7 @@ export default function Home() {
                 </div>
                 <div>
                   <h4 className="font-semibold text-lg mb-1">Endereço</h4>
-                  <p className="text-foreground/70">Rua da Fé, 123 - Centro<br />São Paulo, SP - CEP 01234-567</p>
+                  <p className="text-foreground/70">R. Geraldo Gomes Loureiro, 718 - Vila Brasileira, <br /> Mogi das Cruzes - SP, 08738-300</p>
                 </div>
               </div>
               <div className="flex items-start gap-4">
