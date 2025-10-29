@@ -56,7 +56,13 @@ app.use((req, res, next) => {
     }
   });
 
-  registerRoutes(app);
+  if (app.get("env") === "development") {
+    registerRoutes(app);
+    await setupVite(app, app as any);
+  } else {
+    registerRoutes(app);
+    serveStatic(app);
+  }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
