@@ -243,6 +243,21 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  app.patch("/api/admin/courses/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const courseData = insertCourseSchema.partial().parse(req.body);
+      const updatedCourse = await storage.updateCourse(id, courseData);
+      res.json(updatedCourse);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      console.error("Update course error:", error);
+      res.status(500).json({ message: "Erro ao atualizar curso" });
+    }
+  });
+
   app.delete("/api/admin/courses/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
