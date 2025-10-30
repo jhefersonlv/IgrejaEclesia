@@ -569,23 +569,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSchedule(data: InsertSchedule): Promise<Schedule> {
-    // Adiciona 1 ao mês porque getMonth() é 0-indexed (0 para Janeiro)
-    const date = new Date(data.data);
-    const mes = date.getUTCMonth() + 1;
-    const ano = date.getUTCFullYear();
+    // Corrige o problema de fuso horário ao criar a data
+    // A data do cliente (ex: "2025-10-25") é interpretada como UTC, o que pode causar a data ser salva no dia anterior.
+    // Adicionar T00:00:00 força a interpretação no fuso horário local do servidor.
+    const localDate = new Date(`${data.data}T00:00:00`);
+    const mes = localDate.getMonth() + 1;
+    const ano = localDate.getFullYear();
 
-    const result = await db.insert(schedules).values({ ...data, mes, ano }).returning();
+    const result = await db.insert(schedules).values({ ...data, data: localDate, mes, ano }).returning();
     return result[0];
   }
 
   async updateSchedule(id: number, data: Partial<InsertSchedule>): Promise<Schedule> {
     const updateData: any = { ...data };
 
-    // Se a data for alterada, recalcula mês e ano
+    // Se a data for alterada, recalcula mês e ano e corrige o fuso horário
     if (data.data) {
-      const date = new Date(data.data);
-      updateData.mes = date.getUTCMonth() + 1;
-      updateData.ano = date.getUTCFullYear();
+      const localDate = new Date(`${data.data}T00:00:00`);
+      updateData.data = localDate; // Passa o objeto Date corrigido
+      updateData.mes = localDate.getMonth() + 1;
+      updateData.ano = localDate.getFullYear();
     }
 
     const result = await db.update(schedules)
