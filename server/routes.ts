@@ -4,8 +4,21 @@ import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSc
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
+import multer from 'multer';
+import path from 'path';
 
 const JWT_SECRET = process.env.SESSION_SECRET || "your-secret-key-change-in-production";
+
+// Setup multer for file uploads
+const storageConfig = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'client/public/uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
+});
+const upload = multer({ storage: storageConfig });
 
 // Middleware to verify JWT token
 async function authenticateToken(req: Request, res: Response, next: NextFunction) {
@@ -83,6 +96,15 @@ export function registerRoutes(app: Express) {
       res.status(500).json({ message: "Erro ao buscar usuário" });
     }
   });
+
+  // Upload Route
+  app.post("/api/upload", authenticateToken, upload.single('file'), (req: Request, res: Response) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "Nenhum arquivo enviado" });
+    }
+    const fileUrl = `/uploads/${req.file.filename}`;
+    res.json({ url: fileUrl });
+  });
 
   // Public Routes
   app.get("/api/events/public", async (req: Request, res: Response) => {
@@ -202,6 +224,29 @@ export function registerRoutes(app: Express) {
       res.status(500).json({ message: "Erro ao atualizar membro" });
     }
   });
+
+  app.patch("/api/profile", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const id = (req as any).userId;
+      const updateSchema = insertUserSchema.partial();
+      const userData = updateSchema.parse(req.body);
+
+      // Prevent users from making themselves admins
+      if (userData.isAdmin !== undefined) {
+        delete userData.isAdmin;
+      }
+
+      const updatedUser = await storage.updateUser(id, userData);
+      const { senha, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      console.error("Update profile error:", error);
+      res.status(500).json({ message: "Erro ao atualizar perfil" });
+    }
+  });
 
   app.patch("/api/admin/members/:id/toggle-admin", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {

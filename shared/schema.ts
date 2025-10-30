@@ -18,6 +18,7 @@ export const users = pgTable("users", {
   ministerioObreiro: boolean("ministerio_obreiro").notNull().default(false),
   isAdmin: boolean("is_admin").notNull().default(false),
   isLider: boolean("is_lider").notNull().default(false),
+  fotoUrl: text("foto_url"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -183,6 +184,7 @@ export const insertUserSchema = z.object({
   ministerioObreiro: z.boolean().optional(),
   isAdmin: z.boolean().optional(),
   isLider: z.boolean().optional(),
+  fotoUrl: z.string().optional(),
 });
 
 export const insertEventSchema = z.object({

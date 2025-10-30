@@ -32,7 +32,7 @@ import type { User, InsertUser } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertUserSchema } from "@shared/schema";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, apiUpload } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { z } from "zod";
@@ -51,6 +51,7 @@ const editUserSchema = z.object({
   ministerioLouvor: z.boolean().optional(),
   ministerioObreiro: z.boolean().optional(),
   isLider: z.boolean().optional(),
+  fotoUrl: z.string().optional(),
 });
 
 type EditUserForm = z.infer<typeof editUserSchema>;
@@ -82,6 +83,7 @@ export default function AdminMembers() {
       isAdmin: false,
       ministerioLouvor: false,
       ministerioObreiro: false,
+      fotoUrl: "",
     },
   });
 
@@ -100,6 +102,15 @@ export default function AdminMembers() {
       ministerioLouvor: false,
       ministerioObreiro: false,
       isLider: false,
+      fotoUrl: "",
+    },
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return await apiUpload<{ url: string }>("/api/upload", formData);
     },
   });
 
@@ -196,6 +207,7 @@ export default function AdminMembers() {
       ministerioLouvor: member.ministerioLouvor || false,
       ministerioObreiro: member.ministerioObreiro || false,
       isLider: member.isLider || false,
+      fotoUrl: member.fotoUrl || "",
     });
     setIsEditOpen(true);
   };
@@ -237,16 +249,45 @@ export default function AdminMembers() {
     });
   };
 
-  const onSubmit = (data: InsertUser) => {
+  const onSubmit = async (data: InsertUser) => {
+    const fileInput = document.getElementById('fotoUrl') as HTMLInputElement;
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+      try {
+        const uploadResult = await uploadMutation.mutateAsync(fileInput.files[0]);
+        data.fotoUrl = uploadResult.url;
+      } catch (error) {
+        toast({
+          title: "Erro no upload da foto",
+          description: "Não foi possível fazer o upload da foto. Tente novamente.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     createMemberMutation.mutate(data);
   };
 
-  const onEditSubmit = (data: EditUserForm) => {
+  const onEditSubmit = async (data: EditUserForm) => {
     if (!editingMember) return;
-    // Remove senha if empty (optional field in update)
+
     const updateData: Partial<InsertUser> = { ...data };
     if (!updateData.senha || updateData.senha.trim() === "") {
       delete updateData.senha;
+    }
+
+    const fileInput = document.getElementById('edit-fotoUrl') as HTMLInputElement;
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+      try {
+        const uploadResult = await uploadMutation.mutateAsync(fileInput.files[0]);
+        updateData.fotoUrl = uploadResult.url;
+      } catch (error) {
+        toast({
+          title: "Erro no upload da foto",
+          description: "Não foi possível fazer o upload da nova foto. Tente novamente.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
     updateMemberMutation.mutate({ id: editingMember.id, data: updateData });
   };
@@ -330,6 +371,11 @@ export default function AdminMembers() {
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="endereco">Endereço</Label>
                     <Input id="endereco" {...form.register("endereco")} data-testid="input-address" />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="fotoUrl">Foto do Perfil</Label>
+                    <Input id="fotoUrl" type="file" data-testid="input-fotoUrl" />
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
@@ -439,6 +485,11 @@ export default function AdminMembers() {
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="edit-endereco">Endereço</Label>
                     <Input id="edit-endereco" {...editForm.register("endereco")} data-testid="input-edit-address" />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="edit-fotoUrl">Foto do Perfil</Label>
+                    <Input id="edit-fotoUrl" type="file" data-testid="input-edit-fotoUrl" />
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
@@ -581,6 +632,7 @@ export default function AdminMembers() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Foto</TableHead>
                   <TableHead>Nome</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Cidade</TableHead>
@@ -593,6 +645,9 @@ export default function AdminMembers() {
               <TableBody>
                 {filteredMembers.map((member) => (
                   <TableRow key={member.id} data-testid={`row-member-${member.id}`}>
+                    <TableCell>
+                      <img src={member.fotoUrl || "/logo_eclesia.png"} alt={member.nome} className="w-10 h-10 rounded-full" />
+                    </TableCell>
                     <TableCell className="font-medium">{member.nome}</TableCell>
                     <TableCell>{member.email}</TableCell>
                     <TableCell>{member.cidade || "-"}</TableCell>

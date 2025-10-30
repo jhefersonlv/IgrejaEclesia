@@ -35,6 +35,27 @@ export async function apiRequest<T = any>(
   return await res.json();
 }
 
+export async function apiUpload<T>(url: string, formData: FormData): Promise<T> {
+  const headers: HeadersInit = {};
+  const token = localStorage.getItem("token");
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: "An unknown error occurred" }));
+    throw new Error(errorData.message || "Failed to upload file");
+  }
+
+  return response.json();
+}
+
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;

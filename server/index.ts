@@ -1,3 +1,4 @@
+import { createServer } from "http";
 import { db } from "./db";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
@@ -6,6 +7,7 @@ import session from "express-session";
 import cors from "cors";
 
 const app = express();
+const server = createServer(app);
 
 // Configuração CORS
 app.use(cors({
@@ -92,14 +94,14 @@ app.use((req, res, next) => {
   });
 
   if (app.get("env") === "development") {
-    await setupVite(app, app as any);
+    await setupVite(app, server);
     useViteCatchall(app);
   } else {
     serveStatic(app);
   }
 
   const port = parseInt(process.env.PORT || '5000', 10);
-  app.listen(port, "0.0.0.0", () => {
+  server.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
   });
 })();
