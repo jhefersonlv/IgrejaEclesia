@@ -11,24 +11,26 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { BookOpen, Video, GraduationCap, User, LogOut, CalendarDays, Heart, Shield } from "lucide-react";
+import { BookOpen, Video, GraduationCap, User, LogOut, CalendarDays, Heart, Shield, Home } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
+import { title } from "process";
 
 interface AppSidebarProps {
   userNome?: string;
   isLider?: boolean;
   isAdmin?: boolean;
+  fotoUrl?: string;
 }
 
-export function AppSidebar({ userNome, isLider, isAdmin }: AppSidebarProps) {
+export function AppSidebar({ userNome, isLider, isAdmin, fotoUrl }: AppSidebarProps) {
   const [location, setLocation] = useLocation();
 
   const items = [
     {
       title: "Dashboard",
       url: "/membro",
-      icon: () => <img src="/logo_eclesia.png" alt="Logo" className="w-4 h-4" />,
+      icon: Home,
     },
     {
       title: "Cursos",
@@ -73,7 +75,7 @@ export function AppSidebar({ userNome, isLider, isAdmin }: AppSidebarProps) {
       <SidebarHeader className="p-6 border-b">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
-            <img src="/logo_eclesia.png" alt="Logo" className="w-6 h-6" />
+            <img src={fotoUrl || "/logo_eclesia.png"} alt="Foto de Perfil" className="w-6 h-6" />
           </div>
           <div>
             <h2 className="font-sans font-semibold text-lg">Área do Membro</h2>
