@@ -31,6 +31,8 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function AdminCourses() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const { toast } = useToast();
 
   const { data: courses = [], isLoading } = useQuery<Course[]>({
@@ -84,6 +86,40 @@ export default function AdminCourses() {
   const onCreateCourse = (data: InsertCourse) => {
     createCourseMutation.mutate(data);
   };
+
+  const onUpdateCourse = (data: InsertCourse) => {
+    if (!selectedCourse) return;
+    updateCourseMutation.mutate({ id: selectedCourse.id, ...data });
+  };
+
+  const handleEditClick = (course: Course) => {
+    setSelectedCourse(course);
+    courseForm.reset(course);
+    setIsEditOpen(true);
+  };
+
+  const updateCourseMutation = useMutation({
+    mutationFn: async (data: { id: number } & InsertCourse) => {
+      return await apiRequest<Course>("PATCH", `/api/admin/courses/${data.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/courses"] });
+      toast({
+        title: "Curso atualizado com sucesso!",
+        description: "As informações do curso foram atualizadas.",
+      });
+      setIsEditOpen(false);
+      setSelectedCourse(null);
+      courseForm.reset();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao atualizar curso",
+        description: error.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
 
   return (
     <div className="space-y-8">
@@ -203,6 +239,13 @@ export default function AdminCourses() {
                   <Button
                     variant="outline"
                     size="icon"
+                    onClick={() => handleEditClick(course)}
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
                     onClick={() => {
                       if (confirm(`Tem certeza que deseja remover ${course.nome}?`)) {
                         deleteCourseMutation.mutate(course.id);
@@ -232,6 +275,56 @@ export default function AdminCourses() {
           </div>
         </Card>
       )}
+
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar Curso</DialogTitle>
+            <DialogDescription>
+              Atualize as informações do curso
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={courseForm.handleSubmit(onUpdateCourse)} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="nome-edit">Nome do Curso *</Label>
+              <Input id="nome-edit" {...courseForm.register("nome")} />
+              {courseForm.formState.errors.nome && (
+                <p className="text-sm text-destructive">{courseForm.formState.errors.nome.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="descricao-edit">Descrição *</Label>
+              <Textarea
+                id="descricao-edit"
+                rows={4}
+                {...courseForm.register("descricao")}
+              />
+              {courseForm.formState.errors.descricao && (
+                <p className="text-sm text-destructive">{courseForm.formState.errors.descricao.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="imagem-edit">URL da Imagem</Label>
+              <Input
+                id="imagem-edit"
+                placeholder="https://example.com/image.jpg"
+                {...courseForm.register("imagem")}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={updateCourseMutation.isPending}>
+                {updateCourseMutation.isPending ? "Salvando..." : "Salvar Alterações"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
