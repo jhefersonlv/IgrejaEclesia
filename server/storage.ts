@@ -492,7 +492,7 @@ export class DatabaseStorage implements IStorage {
     return Object.values(scheduleMap);
   }
 
-  // CORRIGIDO: Retorna `ScheduleWithAssignments[]` e usa `EXTRACT` para simplicidade.
+  // ⭐ ÚNICA MUDANÇA: Usa eq() nos campos mes e ano ao invés de EXTRACT
   async getSchedulesByMonth(mes: number, ano: number): Promise<ScheduleWithAssignments[]> {
     const rows = await db
       .select({
@@ -505,8 +505,8 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(users, eq(scheduleAssignments.userId, users.id))
       .where(
         and(
-          sql`EXTRACT(MONTH FROM ${schedules.data}::date) = ${mes}`,
-          sql`EXTRACT(YEAR FROM ${schedules.data}::date) = ${ano}`
+          eq(schedules.mes, mes),
+          eq(schedules.ano, ano)
         )
       )
       .orderBy(schedules.data);
