@@ -142,6 +142,17 @@ export const courseEnrollments = pgTable("course_enrollments", {
   }
 });
 
+// Visitors table
+export const visitors = pgTable("visitors", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  nome: text("nome").notNull(),
+  whatsapp: text("whatsapp").notNull(),
+  comoConheceu: text("como_conheceu").notNull(),
+  culto: text("culto").notNull(), // Quarta, Domingo Manhã, Domingo Noite
+  membrouSe: boolean("membrou_se").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   enrollments: many(courseEnrollments),
@@ -265,6 +276,15 @@ export const insertCourseEnrollmentSchema = z.object({
   courseId: z.number(),
 });
 
+// Visitors ZOD
+export const insertVisitorSchema = z.object({
+  nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
+  whatsapp: z.string().min(8, "Telefone inválido"),
+  comoConheceu: z.string(),
+  culto: z.string(),
+  membrouSe: z.boolean(),
+});
+
 // Login schema
 export const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -296,4 +316,6 @@ export type Question = typeof questions.$inferSelect;
 export type InsertQuestion = z.infer<typeof insertQuestionSchema>;
 export type LessonCompletion = typeof lessonCompletions.$inferSelect;
 export type InsertLessonCompletion = z.infer<typeof insertLessonCompletionSchema>;
+export type Visitor = typeof visitors.$inferSelect;
+export type InsertVisitor = z.infer<typeof insertVisitorSchema>;
 export type LoginCredentials = z.infer<typeof loginSchema>;

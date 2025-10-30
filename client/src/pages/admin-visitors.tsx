@@ -6,29 +6,14 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-
-/** Mocked visitors for now */
-const initialVisitors = [
-  {
-    id: 1,
-    nome: 'João da Silva',
-    whatsapp: '(11) 91234-5678',
-    comoConheceu: 'Amigo/familiar',
-    culto: 'Domingo Manhã',
-    membrouSe: false,
-  },
-  {
-    id: 2,
-    nome: 'Maria Souza',
-    whatsapp: '(11) 92345-8888',
-    comoConheceu: 'Instagram',
-    culto: 'Quarta',
-    membrouSe: true,
-  },
-];
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 
 export default function AdminVisitorsPage() {
-  const [visitors, setVisitors] = useState(initialVisitors);
+  const { toast } = useToast();
+
+  // Form state
   const [form, setForm] = useState({
     nome: '',
     whatsapp: '',
@@ -37,6 +22,61 @@ export default function AdminVisitorsPage() {
     membrouSe: false,
   });
   const [editingId, setEditingId] = useState<number | null>(null);
+
+  // Load visitors from API
+  const { data: visitors = [], isLoading } = useQuery<any[]>({
+    queryKey: ['/api/admin/visitors'],
+    queryFn: async () => apiRequest('GET', '/api/admin/visitors'),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof form) => {
+      return await apiRequest('POST', '/api/admin/visitors', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/visitors'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/analytics/visitors'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/analytics/general'] });
+      setForm({ nome: '', whatsapp: '', comoConheceu: '', culto: '', membrouSe: false });
+      toast({ title: 'Visitante cadastrado!' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Erro ao cadastrar visitante', description: error.message || 'Tente novamente.', variant: 'destructive' });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: { id: number } & typeof form) => {
+      const { id, ...payload } = data;
+      return await apiRequest('PATCH', `/api/admin/visitors/${id}`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/visitors'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/analytics/visitors'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/analytics/general'] });
+      setEditingId(null);
+      setForm({ nome: '', whatsapp: '', comoConheceu: '', culto: '', membrouSe: false });
+      toast({ title: 'Visitante atualizado!' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Erro ao atualizar visitante', description: error.message || 'Tente novamente.', variant: 'destructive' });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return await apiRequest('DELETE', `/api/admin/visitors/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/visitors'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/analytics/visitors'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/analytics/general'] });
+      toast({ title: 'Visitante excluído.' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Erro ao excluir visitante', description: error.message || 'Tente novamente.', variant: 'destructive' });
+    },
+  });
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const { name, value, type, checked } = e.target as any;
@@ -48,25 +88,34 @@ export default function AdminVisitorsPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.nome || !form.whatsapp || !form.comoConheceu || !form.culto) return;
-    if (editingId) {
-      setVisitors(list => list.map(v => v.id === editingId ? { ...form, id: editingId } : v));
-      setEditingId(null);
-    } else {
-      setVisitors(list => [...list, { ...form, id: Math.max(0, ...list.map(v => v.id)) + 1 }]);
+    if (!form.nome || !form.whatsapp || !form.comoConheceu || !form.culto) {
+      toast({ title: 'Preencha todos os campos obrigatórios.', variant: 'destructive' });
+      return;
     }
-    setForm({ nome: '', whatsapp: '', comoConheceu: '', culto: '', membrouSe: false });
+    if (editingId) {
+      updateMutation.mutate({ id: editingId, ...form });
+    } else {
+      createMutation.mutate(form);
+    }
   }
   function handleEdit(visitor: any) {
-    setForm(visitor);
+    setForm({
+      nome: visitor.nome || '',
+      whatsapp: visitor.whatsapp || '',
+      comoConheceu: visitor.comoConheceu || '',
+      culto: visitor.culto || '',
+      membrouSe: !!visitor.membrouSe,
+    });
     setEditingId(visitor.id);
   }
   function handleDelete(id: number) {
-    setVisitors(list => list.filter(v => v.id !== id));
+    deleteMutation.mutate(id);
     if (editingId === id) setEditingId(null);
   }
-  function handleToggleMembrou(id: number) {
-    setVisitors(list => list.map(v => v.id === id ? { ...v, membrouSe: !v.membrouSe } : v));
+  function handleToggleMembrou(id: number, current: boolean) {
+    const v = visitors.find(v => v.id === id);
+    if (!v) return;
+    updateMutation.mutate({ id, nome: v.nome, whatsapp: v.whatsapp, comoConheceu: v.comoConheceu, culto: v.culto, membrouSe: !current });
   }
 
   return (
@@ -117,7 +166,7 @@ export default function AdminVisitorsPage() {
               {editingId && (
                 <Button type="button" variant="secondary" onClick={() => { setEditingId(null); setForm({ nome: '', whatsapp: '', comoConheceu: '', culto: '', membrouSe: false }); }}>Cancelar</Button>
               )}
-              <Button type="submit">{editingId ? 'Salvar alterações' : 'Cadastrar Visitante'}</Button>
+              <Button type="submit" disabled={createMutation.status==='pending' || updateMutation.status==='pending'}>{editingId ? 'Salvar alterações' : 'Cadastrar Visitante'}</Button>
             </div>
           </form>
         </CardContent>
@@ -125,36 +174,40 @@ export default function AdminVisitorsPage() {
       <Card>
         <CardHeader><CardTitle>Visitantes Cadastrados</CardTitle></CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Whatsapp</TableHead>
-                <TableHead>Como Conheceu</TableHead>
-                <TableHead>Culto</TableHead>
-                <TableHead>Membrou-se</TableHead>
-                <TableHead>Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visitors.map((v) => (
-                <TableRow key={v.id}>
-                  <TableCell>{v.nome}</TableCell>
-                  <TableCell>{v.whatsapp}</TableCell>
-                  <TableCell>{v.comoConheceu}</TableCell>
-                  <TableCell>{v.culto}</TableCell>
-                  <TableCell>
-                    <Checkbox checked={v.membrouSe} onCheckedChange={() => handleToggleMembrou(v.id)} />
-                  </TableCell>
-                  <TableCell className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => handleEdit(v)}>Editar</Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleDelete(v.id)}>Excluir</Button>
-                  </TableCell>
+          {isLoading ? (
+            <p className="text-muted-foreground">Carregando...</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Whatsapp</TableHead>
+                  <TableHead>Como Conheceu</TableHead>
+                  <TableHead>Culto</TableHead>
+                  <TableHead>Membrou-se</TableHead>
+                  <TableHead>Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {visitors.length === 0 && (
+              </TableHeader>
+              <TableBody>
+                {visitors.map((v) => (
+                  <TableRow key={v.id}>
+                    <TableCell>{v.nome}</TableCell>
+                    <TableCell>{v.whatsapp}</TableCell>
+                    <TableCell>{v.comoConheceu}</TableCell>
+                    <TableCell>{v.culto}</TableCell>
+                    <TableCell>
+                      <Checkbox checked={!!v.membrouSe} onCheckedChange={() => handleToggleMembrou(v.id, !!v.membrouSe)} />
+                    </TableCell>
+                    <TableCell className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleEdit(v)}>Editar</Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleDelete(v.id)} disabled={deleteMutation.status==='pending'}>Excluir</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {!isLoading && visitors.length === 0 && (
             <p className="text-center text-muted-foreground py-4">Nenhum visitante ainda cadastrado.</p>
           )}
         </CardContent>

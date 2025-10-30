@@ -43,6 +43,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const navItems = [
     { path: "/admin", icon: Home, label: "Dashboard" },
     { path: "/admin/members", icon: Users, label: "Membros" },
+    { path: "/admin/visitors", icon: Users, label: "Visitantes" },
     { path: "/admin/analytics", icon: BarChart3, label: "Analytics" },
     { path: "/admin/courses", icon: GraduationCap, label: "Cursos" },
     { path: "/admin/events", icon: Calendar, label: "Eventos" },

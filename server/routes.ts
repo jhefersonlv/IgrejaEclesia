@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
-import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema, insertQuestionSchema } from "@shared/schema";
+import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema, insertQuestionSchema, insertVisitorSchema } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
@@ -534,6 +534,26 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  app.get("/api/admin/analytics/visitors", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const analytics = await storage.getVisitorAnalytics();
+      res.json(analytics);
+    } catch (error) {
+      console.error("Get visitor analytics error:", error);
+      res.status(500).json({ message: "Erro ao buscar analytics de visitantes" });
+    }
+  });
+
+  app.get("/api/admin/analytics/general", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const analytics = await storage.getGeneralAnalytics();
+      res.json(analytics);
+    } catch (error) {
+      console.error("Get general analytics error:", error);
+      res.status(500).json({ message: "Erro ao buscar analytics geral" });
+    }
+  });
+
   // Schedule Routes (for leaders and members)
   const requireLeader = (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user?.isLider && !req.user?.isAdmin) {
@@ -815,5 +835,57 @@ export function registerRoutes(app: Express) {
       res.status(500).json({ message: "Erro ao buscar progresso dos usuários" });
     }
   });
+
+  // Visitors API
+  app.get("/api/admin/visitors", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const visitors = await storage.getAllVisitors();
+      res.json(visitors);
+    } catch (error) {
+      console.error("Get visitors error:", error);
+      res.status(500).json({ message: "Erro ao buscar visitantes" });
+    }
+  });
+
+  app.post("/api/admin/visitors", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const visitorData = insertVisitorSchema.parse(req.body);
+      const newVisitor = await storage.createVisitor(visitorData);
+      res.status(201).json(newVisitor);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      console.error("Create visitor error:", error);
+      res.status(500).json({ message: "Erro ao criar visitante" });
+    }
+  });
+
+  app.patch("/api/admin/visitors/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updateSchema = insertVisitorSchema.partial();
+      const visitorData = updateSchema.parse(req.body);
+      const updatedVisitor = await storage.updateVisitor(id, visitorData);
+      res.json(updatedVisitor);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      console.error("Update visitor error:", error);
+      res.status(500).json({ message: "Erro ao atualizar visitante" });
+    }
+  });
+
+  app.delete("/api/admin/visitors/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteVisitor(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete visitor error:", error);
+      res.status(500).json({ message: "Erro ao deletar visitante" });
+    }
+  });
 
 }

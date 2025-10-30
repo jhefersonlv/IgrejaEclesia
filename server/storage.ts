@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments, questions, lessonCompletions, courseEnrollments } from "@shared/schema";
-import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment, Question, InsertQuestion, LessonCompletion, InsertLessonCompletion, CourseEnrollment } from "@shared/schema";
+import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments, questions, lessonCompletions, courseEnrollments, visitors } from "@shared/schema";
+import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment, Question, InsertQuestion, LessonCompletion, InsertLessonCompletion, CourseEnrollment, Visitor, InsertVisitor } from "@shared/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
@@ -20,6 +20,29 @@ export interface IStorage {
   updateUser(id: number, data: Partial<InsertUser>): Promise<User>;
   updateUserAdmin(id: number, isAdmin: boolean): Promise<User>;
   deleteUser(id: number): Promise<void>;
+
+  // Visitors
+  getAllVisitors(): Promise<Visitor[]>;
+  createVisitor(data: InsertVisitor): Promise<Visitor>;
+  updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor>;
+  deleteVisitor(id: number): Promise<void>;
+  
+  // Visitors Analytics
+  getVisitorAnalytics(): Promise<{
+    totalVisitors: number;
+    visitorsByCulto: { culto: string; count: number }[];
+    visitorsByOrigem: { origem: string; count: number }[];
+    visitorsMembrouSe: number;
+    recentVisitorsCount: number;
+  }>;
+
+  // General Analytics (Members + Visitors)
+  getGeneralAnalytics(): Promise<{
+    totalPeople: number;
+    totalMembers: number;
+    totalVisitors: number;
+    visitorsMembrouSe: number;
+  }>;
   
   // Events
   getAllEvents(): Promise<Event[]>;
@@ -169,6 +192,82 @@ export class DatabaseStorage implements IStorage {
 
   async deleteUser(id: number): Promise<void> {
     await db.delete(users).where(eq(users.id, id));
+  }
+
+  // Visitors
+  async getAllVisitors(): Promise<Visitor[]> {
+    return await db.select().from(visitors).orderBy(visitors.createdAt);
+  }
+
+  async createVisitor(data: InsertVisitor): Promise<Visitor> {
+    const result = await db.insert(visitors).values(data).returning();
+    return result[0];
+  }
+
+  async updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor> {
+    const result = await db.update(visitors)
+      .set(data)
+      .where(eq(visitors.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteVisitor(id: number): Promise<void> {
+    await db.delete(visitors).where(eq(visitors.id, id));
+  }
+
+  // Visitors Analytics
+  async getVisitorAnalytics() {
+    const allVisitors = await db.select().from(visitors);
+
+    const totalVisitors = allVisitors.length;
+
+    const byCultoMap: Record<string, number> = {};
+    const byOrigemMap: Record<string, number> = {};
+    let membrouSe = 0;
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    let recentVisitorsCount = 0;
+
+    for (const v of allVisitors) {
+      if (v.culto) byCultoMap[v.culto] = (byCultoMap[v.culto] || 0) + 1;
+      if (v.comoConheceu) byOrigemMap[v.comoConheceu] = (byOrigemMap[v.comoConheceu] || 0) + 1;
+      if (v.membrouSe) membrouSe++;
+      if (new Date(v.createdAt) >= thirtyDaysAgo) recentVisitorsCount++;
+    }
+
+    const visitorsByCulto = Object.entries(byCultoMap)
+      .map(([culto, count]) => ({ culto, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const visitorsByOrigem = Object.entries(byOrigemMap)
+      .map(([origem, count]) => ({ origem, count }))
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      totalVisitors,
+      visitorsByCulto,
+      visitorsByOrigem,
+      visitorsMembrouSe: membrouSe,
+      recentVisitorsCount,
+    };
+  }
+
+  // General Analytics (Members + Visitors)
+  async getGeneralAnalytics() {
+    const memberAgg = await this.getMemberAnalytics();
+    const visitorAgg = await this.getVisitorAnalytics();
+
+    const totalMembers = memberAgg.totalMembers;
+    const totalVisitors = visitorAgg.totalVisitors;
+
+    return {
+      totalPeople: totalMembers + totalVisitors,
+      totalMembers,
+      totalVisitors,
+      visitorsMembrouSe: visitorAgg.visitorsMembrouSe,
+    };
   }
 
   // Events
@@ -480,7 +579,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSchedule(id: number, data: Partial<InsertSchedule>): Promise<Schedule> {
-    const updateData = { ...data };
+    const updateData: any = { ...data };
 
     // Se a data for alterada, recalcula mês e ano
     if (data.data) {
@@ -534,12 +633,30 @@ export class DatabaseStorage implements IStorage {
 
   // Members with ministry filter
   async getUsersByMinistry(ministerio: string): Promise<User[]> {
-    return await db.select().from(users).where(eq(users.ministerio, ministerio));
+    if (ministerio === "louvor") {
+      return await db.select().from(users).where(eq(users.ministerioLouvor, true));
+    }
+    if (ministerio === "obreiro") {
+      return await db.select().from(users).where(eq(users.ministerioObreiro, true));
+    }
+    return await db.select().from(users);
   }
 
   async updateUserMinistry(id: number, ministerio: string | null, isLider: boolean): Promise<User> {
+    const updateData: any = { isLider };
+    if (ministerio === "louvor") {
+      updateData.ministerioLouvor = true;
+      updateData.ministerioObreiro = false;
+    } else if (ministerio === "obreiro") {
+      updateData.ministerioLouvor = false;
+      updateData.ministerioObreiro = true;
+    } else {
+      updateData.ministerioLouvor = false;
+      updateData.ministerioObreiro = false;
+    }
+
     const result = await db.update(users)
-      .set({ ministerio, isLider })
+      .set(updateData)
       .where(eq(users.id, id))
       .returning();
     return result[0];

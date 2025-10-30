@@ -25,6 +25,7 @@ import AdminEvents from "@/pages/admin-events";
 import AdminMaterials from "@/pages/admin-materials";
 import AdminPrayers from "@/pages/admin-prayers";
 import AdminAnalytics from "@/pages/admin-analytics";
+import AdminVisitors from "@/pages/admin-visitors";
 
 function Router() {
   return (
@@ -115,6 +116,11 @@ function Router() {
       <Route path="/admin/analytics">
         <AdminLayout>
           <AdminAnalytics />
+        </AdminLayout>
+      </Route>
+      <Route path="/admin/visitors">
+        <AdminLayout>
+          <AdminVisitors />
         </AdminLayout>
       </Route>
       
