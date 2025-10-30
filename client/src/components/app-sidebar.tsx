@@ -11,7 +11,7 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { BookOpen, Video, GraduationCap, User, LogOut, CalendarDays, Heart, Shield, Home } from "lucide-react";
+import { BookOpen, Video, GraduationCap, User, LogOut, CalendarDays, Heart, Shield, Home, Users } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { title } from "process";
@@ -20,10 +20,11 @@ interface AppSidebarProps {
   userNome?: string;
   isLider?: boolean;
   isAdmin?: boolean;
+  isObreiro?: boolean;
   fotoUrl?: string;
 }
 
-export function AppSidebar({ userNome, isLider, isAdmin, fotoUrl }: AppSidebarProps) {
+export function AppSidebar({ userNome, isLider, isAdmin, isObreiro, fotoUrl }: AppSidebarProps) {
   const [location, setLocation] = useLocation();
 
   const items = [
@@ -63,6 +64,14 @@ export function AppSidebar({ userNome, isLider, isAdmin, fotoUrl }: AppSidebarPr
       icon: User,
     },
   ];
+
+  if (isObreiro) {
+    items.push({
+      title: "Visitantes",
+      url: "/membro/visitantes",
+      icon: Users,
+    });
+  }
 
   const handleLogout = () => {
     localStorage.removeItem("token");

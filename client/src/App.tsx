@@ -26,6 +26,7 @@ import AdminMaterials from "@/pages/admin-materials";
 import AdminPrayers from "@/pages/admin-prayers";
 import AdminAnalytics from "@/pages/admin-analytics";
 import AdminVisitors from "@/pages/admin-visitors";
+import MemberVisitors from "@/pages/member-visitors";
 
 function Router() {
   return (
@@ -74,6 +75,11 @@ function Router() {
       <Route path="/lider/escalas">
         <MemberLayout>
           <LeaderSchedules />
+        </MemberLayout>
+      </Route>
+      <Route path="/membro/visitantes">
+        <MemberLayout>
+          <MemberVisitors />
         </MemberLayout>
       </Route>
       

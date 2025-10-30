@@ -57,6 +57,15 @@ async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+// Middleware to check if user is obreiro or admin
+async function requireObreiro(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user;
+  if (!user || (!user.ministerioObreiro && !user.isAdmin)) {
+    return res.status(403).json({ message: "Acesso negado. Requer permissões de obreiro." });
+  }
+  next();
+}
+
 export function registerRoutes(app: Express) {
   // Auth Routes
   app.post("/api/auth/login", async (req: Request, res: Response) => {
@@ -888,4 +897,55 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Member Visitors API (for Obreiros)
+  app.get("/api/member/visitors", authenticateToken, requireObreiro, async (req: Request, res: Response) => {
+    try {
+      const visitors = await storage.getAllVisitors();
+      res.json(visitors);
+    } catch (error) {
+      console.error("Get visitors error:", error);
+      res.status(500).json({ message: "Erro ao buscar visitantes" });
+    }
+  });
+
+  app.post("/api/member/visitors", authenticateToken, requireObreiro, async (req: Request, res: Response) => {
+    try {
+      const visitorData = insertVisitorSchema.parse(req.body);
+      const newVisitor = await storage.createVisitor(visitorData);
+      res.status(201).json(newVisitor);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      console.error("Create visitor error:", error);
+      res.status(500).json({ message: "Erro ao criar visitante" });
+    }
+  });
+
+  app.patch("/api/member/visitors/:id", authenticateToken, requireObreiro, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updateSchema = insertVisitorSchema.partial();
+      const visitorData = updateSchema.parse(req.body);
+      const updatedVisitor = await storage.updateVisitor(id, visitorData);
+      res.json(updatedVisitor);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      console.error("Update visitor error:", error);
+      res.status(500).json({ message: "Erro ao atualizar visitante" });
+    }
+  });
+
+  app.delete("/api/member/visitors/:id", authenticateToken, requireObreiro, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteVisitor(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete visitor error:", error);
+      res.status(500).json({ message: "Erro ao deletar visitante" });
+    }
+  });
 }

@@ -40,6 +40,7 @@ export function MemberLayout({ children }: MemberLayoutProps) {
           userNome={user.nome} 
           isLider={user.isLider} 
           isAdmin={user.isAdmin}
+          isObreiro={user.ministerioObreiro}
         />
         <div className="flex flex-col flex-1 overflow-hidden">
           <header className="flex items-center justify-between p-4 border-b">
