@@ -94,6 +94,7 @@ export const schedules = pgTable("schedules", {
   tipo: text("tipo").notNull(), // louvor, obreiros
   data: date("data").notNull(), // data específica do culto
   observacoes: text("observacoes"),
+  louvores: text("louvores"), // JSON string com lista de louvores
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -245,6 +246,7 @@ export const insertScheduleSchema = z.object({
   tipo: z.string(),
   data: z.string().min(1, "A data é obrigatória"), // Garante que a data não seja vazia
   observacoes: z.string().optional(),
+  louvores: z.string().optional(),
 });
 
 export const insertScheduleAssignmentSchema = z.object({
