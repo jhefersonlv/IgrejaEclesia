@@ -572,19 +572,26 @@ export class DatabaseStorage implements IStorage {
     // Extrai o ano e o mês diretamente da string para evitar problemas de fuso horário.
     const [ano, mes] = data.data.split('-').map(Number);
 
-    const result = await db.insert(schedules).values({ ...data, mes, ano }).returning();
+    // Usa `sql` do Drizzle para passar a data como uma string literal para o banco de dados.
+    // A função `TO_DATE` do PostgreSQL irá interpretar a string corretamente, sem interferência de fuso horário.
+    const result = await db.insert(schedules).values({
+      ...data,
+      data: sql`TO_DATE(${data.data}, 'YYYY-MM-DD')`,
+      mes,
+      ano
+    }).returning();
     return result[0];
   }
 
   async updateSchedule(id: number, data: Partial<InsertSchedule>): Promise<Schedule> {
     const updateData: any = { ...data };
 
-    // Se a data for alterada, recalcula mês e ano
+    // Se a data for alterada, recalcula mês e ano e usa `sql` para a atualização.
     if (data.data) {
-      // Extrai o ano e o mês diretamente da string para evitar problemas de fuso horário.
       const [ano, mes] = data.data.split('-').map(Number);
       updateData.mes = mes;
       updateData.ano = ano;
+      updateData.data = sql`TO_DATE(${data.data}, 'YYYY-MM-DD')`;
     }
 
     const result = await db.update(schedules)
