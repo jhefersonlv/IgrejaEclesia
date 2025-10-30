@@ -94,7 +94,7 @@ export default function LeaderSchedulesPage() {
     if (editingSchedule) {
       form.reset({
         ...editingSchedule,
-        data: format(new Date(editingSchedule.data), "yyyy-MM-dd"),
+        data: editingSchedule.data.split('T')[0],
       });
       const initialAssignments = editingSchedule.assignments.reduce((acc, assign) => {
         acc[assign.posicao] = assign.userId;
