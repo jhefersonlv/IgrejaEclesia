@@ -223,123 +223,111 @@ export default function MemberCourses() {
               </div>
 
               {/* Quiz Section */}
-              {lessonCompletion?.completed ? (
-                <Card className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800" data-testid="quiz-completed">
-                  <CardContent className="pt-6">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center justify-center w-12 h-12 rounded-full bg-green-100 dark:bg-green-900">
-                        <Trophy className="w-6 h-6 text-green-600 dark:text-green-400" />
+              {lessonQuestions.length > 0 ? (
+                lessonCompletion?.completed ? (
+                  <Card className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800" data-testid="quiz-completed">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-center w-12 h-12 rounded-full bg-green-100 dark:bg-green-900">
+                          <Trophy className="w-6 h-6 text-green-600 dark:text-green-400" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-green-900 dark:text-green-100 mb-1">
+                            Lição Concluída!
+                          </h4>
+                          <p className="text-sm text-green-700 dark:text-green-300">
+                            Você acertou {lessonCompletion.score}/3 perguntas e completou esta lição.
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-green-900 dark:text-green-100 mb-1">
-                          Lição Concluída!
-                        </h4>
-                        <p className="text-sm text-green-700 dark:text-green-300">
-                          Você acertou {lessonCompletion.score}/3 perguntas e completou esta lição.
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : lessonQuestions.length === 3 ? (
-                <Card data-testid="quiz-card">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <GraduationCap className="w-5 h-5" />
-                      Quiz de Validação
-                    </CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      Responda as 3 perguntas para completar esta lição
-                    </p>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {lessonQuestions.map((question, index) => (
-                      <div key={question.id} className="space-y-3" data-testid={`quiz-question-${index + 1}`}>
-                        <Label className="text-base font-medium">
-                          {index + 1}. {question.pergunta}
-                        </Label>
-                        <RadioGroup
-                          value={answers[index] || ""}
-                          onValueChange={(value) => {
-                            const newAnswers = [...answers];
-                            newAnswers[index] = value;
-                            setAnswers(newAnswers);
-                          }}
-                          disabled={showResult}
-                        >
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="A" id={`q${index}-A`} data-testid={`radio-q${index + 1}-a`} />
-                            <Label htmlFor={`q${index}-A`} className="cursor-pointer font-normal">
-                              A) {question.opcaoA}
-                            </Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="B" id={`q${index}-B`} data-testid={`radio-q${index + 1}-b`} />
-                            <Label htmlFor={`q${index}-B`} className="cursor-pointer font-normal">
-                              B) {question.opcaoB}
-                            </Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="C" id={`q${index}-C`} data-testid={`radio-q${index + 1}-c`} />
-                            <Label htmlFor={`q${index}-C`} className="cursor-pointer font-normal">
-                              C) {question.opcaoC}
-                            </Label>
-                          </div>
-                        </RadioGroup>
-                      </div>
-                    ))}
-
-                    {showResult && quizResult && (
-                      <Card className={quizResult.completed ? "bg-green-50 dark:bg-green-950" : "bg-amber-50 dark:bg-amber-950"} data-testid="quiz-result">
-                        <CardContent className="pt-6">
-                          <div className="flex items-start gap-4">
-                            {quizResult.completed ? (
-                              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400 mt-1" />
-                            ) : (
-                              <XCircle className="w-6 h-6 text-amber-600 dark:text-amber-400 mt-1" />
-                            )}
-                            <div className="flex-1">
-                              <h4 className="font-semibold mb-1">{quizResult.message}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                Você acertou {quizResult.score} de 3 perguntas.
-                              </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card data-testid="quiz-card">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <GraduationCap className="w-5 h-5" />
+                        Quiz de Validação
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        {lessonQuestions.length === 3 ?
+                          "Responda as 3 perguntas para completar esta lição" :
+                          `Este quiz ainda não foi configurado completamente pelo administrador (${lessonQuestions.length} de 3 perguntas). Aguarde a configuração.`}
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {lessonQuestions.map((question, index) => (
+                        <div key={question.id} className="space-y-3" data-testid={`quiz-question-${index + 1}`}>
+                          <Label className="text-base font-medium">
+                            {index + 1}. {question.pergunta}
+                          </Label>
+                          <RadioGroup
+                            value={answers[index] || ""}
+                            onValueChange={(value) => {
+                              const newAnswers = [...answers];
+                              newAnswers[index] = value;
+                              setAnswers(newAnswers);
+                            }}
+                            disabled={showResult}
+                          >
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="A" id={`q${index}-A`} data-testid={`radio-q${index + 1}-a`} />
+                              <Label htmlFor={`q${index}-A`} className="cursor-pointer font-normal">
+                                A) {question.opcaoA}
+                              </Label>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="B" id={`q${index}-B`} data-testid={`radio-q${index + 1}-b`} />
+                              <Label htmlFor={`q${index}-B`} className="cursor-pointer font-normal">
+                                B) {question.opcaoB}
+                              </Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="C" id={`q${index}-C`} data-testid={`radio-q${index + 1}-c`} />
+                              <Label htmlFor={`q${index}-C`} className="cursor-pointer font-normal">
+                                C) {question.opcaoC}
+                              </Label>
+                            </div>
+                          </RadioGroup>
+                        </div>
+                      ))}
 
-                    <div className="flex justify-end gap-2 pt-4">
-                      {showResult && !quizResult?.completed && (
-                        <Button
-                          variant="outline"
-                          onClick={resetQuizState}
-                          data-testid="button-try-again"
-                        >
-                          Tentar Novamente
-                        </Button>
+                      {lessonQuestions.length !== 3 && (
+                        <div className="text-amber-600 dark:text-amber-400 border border-amber-200 bg-amber-50 dark:bg-amber-950 rounded px-4 py-2 text-sm">
+                          Este quiz ainda está incompleto. Aguarde o administrador cadastrar as 3 perguntas para liberar o envio.
+                        </div>
                       )}
-                      {!showResult && (
-                        <Button
-                          onClick={handleSubmitQuiz}
-                          disabled={submitQuizMutation.isPending}
-                          data-testid="button-submit-quiz"
-                        >
-                          {submitQuizMutation.isPending ? "Enviando..." : "Enviar Respostas"}
-                        </Button>
+
+                      {showResult && quizResult && (
+                        <Card className={quizResult.completed ? "bg-green-50 dark:bg-green-950" : "bg-amber-50 dark:bg-amber-950"} data-testid="quiz-result">
+                          <CardContent className="pt-6">
+                            <div className="flex items-start gap-4">
+                              {quizResult.completed ? (
+                                <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400 mt-1" />
+                              ) : (
+                                <XCircle className="w-6 h-6 text-amber-600 dark:text-amber-400 mt-1" />
+                              )}
+                              <div className="flex-1">
+                                <h4 className="font-semibold mb-1">{quizResult.message}</h4>
+                                <p className="text-sm text-muted-foreground">
+                                  Você acertou {quizResult.score} de 3 perguntas.
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
                       )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800" data-testid="quiz-not-configured">
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-amber-800 dark:text-amber-200">
-                      O quiz desta lição ainda não foi configurado pelo administrador.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
+                      <div className="pt-2 flex justify-end">
+                        {lessonQuestions.length === 3 && !showResult && (
+                          <Button onClick={handleSubmitQuiz} disabled={answers.some(a => a == null)} data-testid="button-send-quiz">
+                            Enviar Respostas
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              ) : null}
             </div>
           ) : (
             <div className="space-y-4">

@@ -226,23 +226,17 @@ export default function AdminCourses() {
               <CardContent className="space-y-3">
                 <p className="text-foreground/70 line-clamp-2">{course.descricao}</p>
                 <div className="flex gap-2">
-                  <Link href={`/admin/course-details/${course.id}`} className="flex-1">
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      data-testid={`button-manage-course-${course.id}`}
-                    >
-                      Gerenciar
-                      <ChevronRight className="w-4 h-4 ml-2" />
-                    </Button>
-                  </Link>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleEditClick(course)}
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
+                  <Link href={`/admin/course-details/${course.id}`} className="w-full">
+  <Button
+    variant="default" // ALTERADO: Destaca o botão de navegação
+    className="w-full"
+    data-testid={`button-manage-course-${course.id}`}
+  >
+    Gerenciar Curso
+    <ChevronRight className="w-4 h-4 ml-2" />
+  </Button>
+</Link>
+                  
                   <Button
                     variant="outline"
                     size="icon"
