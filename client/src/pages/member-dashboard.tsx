@@ -56,9 +56,9 @@ function AniversariantesDoMes() {
         ) : (
           <div className="space-y-3">
             {aniversariantesHoje.length > 0 && (
-              <div className="mb-4 p-3 bg-primary/10 border-2 border-primary rounded-lg">
-                <p className="text-xs font-semibold text-primary mb-2 uppercase">
-                  🎉 Hoje é aniversário!
+              <div className="mb-4 p-3 bg-primary/10 border-1 border-primary rounded-lg">
+                <p className="text-xs text-primary mb-2">
+                    O Senhor te abençoe e te guarde; o Senhor faça resplandecer o seu rosto sobre ti, e tenha misericórdia de ti; o Senhor levante sobre ti o seu rosto, e te dê a paz. - Parabéns! 🎉 
                 </p>
                 {aniversariantesHoje.map((pessoa) => (
                   <div key={pessoa.id} className="flex items-center gap-3 py-2">
@@ -74,7 +74,7 @@ function AniversariantesDoMes() {
                           <User className="w-6 h-6 text-primary" />
                         </div>
                       )}
-                      <div className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                      <div className="absolute -bottom-1 -right-1  text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
                         🎂
                       </div>
                     </div>

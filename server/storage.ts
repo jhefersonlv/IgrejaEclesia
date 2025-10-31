@@ -916,6 +916,31 @@ export class DatabaseStorage implements IStorage {
 
     return enrollments.map(e => e.course).filter((c): c is Course => c !== null);
   }
+
+  async getAniversariantesByMonth(mes: number): Promise<any[]> {
+    const allUsers = await db.select().from(users);
+    
+    const aniversariantes = allUsers
+      .filter(user => {
+        if (!user.dataNascimento) return false;
+        const birthDate = new Date(user.dataNascimento);
+        return birthDate.getMonth() + 1 === mes;
+      })
+      .map(user => {
+        const birthDate = new Date(user.dataNascimento!);
+        return {
+          id: user.id,
+          nome: user.nome,
+          fotoPerfil: user.fotoPerfil || null,
+          dataNascimento: user.dataNascimento,
+          dia: birthDate.getDate(),
+          mes: birthDate.getMonth() + 1,
+        };
+      });
+    
+    return aniversariantes;
+  }
+
 }
 
 export const storage = new DatabaseStorage();
