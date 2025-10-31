@@ -1,7 +1,136 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, Video, GraduationCap, TrendingUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { BookOpen, Video, GraduationCap, Cake, User } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import type { Course, Material } from "@shared/schema";
+import type { Course, Material, User as UserType } from "@shared/schema";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+interface Aniversariante {
+  id: number;
+  nome: string;
+  fotoPerfil?: string;
+  dataNascimento: string;
+  dia: number;
+  mes: number;
+}
+
+// Componente de Aniversariantes
+function AniversariantesDoMes() {
+  const currentDate = new Date();
+  const mesAtual = currentDate.getMonth() + 1;
+  const mesNome = format(currentDate, "MMMM", { locale: ptBR });
+
+  const { data: aniversariantes = [], isLoading } = useQuery<Aniversariante[]>({
+    queryKey: ["aniversariantes", mesAtual],
+    queryFn: async () => {
+      const response = await fetch(`/api/members/birthdays?month=${mesAtual}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      if (!response.ok) throw new Error('Erro ao buscar aniversariantes');
+      return response.json();
+    },
+  });
+
+  const aniversariantesOrdenados = [...aniversariantes].sort((a, b) => a.dia - b.dia);
+  const hoje = currentDate.getDate();
+  const aniversariantesHoje = aniversariantesOrdenados.filter(a => a.dia === hoje);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Cake className="w-5 h-5 text-primary" />
+          Aniversariantes de {mesNome}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Carregando...</p>
+        ) : aniversariantes.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nenhum aniversariante este mês
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {aniversariantesHoje.length > 0 && (
+              <div className="mb-4 p-3 bg-primary/10 border-2 border-primary rounded-lg">
+                <p className="text-xs font-semibold text-primary mb-2 uppercase">
+                  🎉 Hoje é aniversário!
+                </p>
+                {aniversariantesHoje.map((pessoa) => (
+                  <div key={pessoa.id} className="flex items-center gap-3 py-2">
+                    <div className="relative">
+                      {pessoa.fotoPerfil ? (
+                        <img
+                          src={pessoa.fotoPerfil}
+                          alt={pessoa.nome}
+                          className="w-12 h-12 rounded-full object-cover border-2 border-primary"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary">
+                          <User className="w-6 h-6 text-primary" />
+                        </div>
+                      )}
+                      <div className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                        🎂
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm">{pessoa.nome}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {pessoa.dia} de {mesNome}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {aniversariantesOrdenados.map((pessoa) => {
+                const ehHoje = pessoa.dia === hoje;
+                if (ehHoje) return null;
+                
+                return (
+                  <div
+                    key={pessoa.id}
+                    className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="relative">
+                      {pessoa.fotoPerfil ? (
+                        <img
+                          src={pessoa.fotoPerfil}
+                          alt={pessoa.nome}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                          <User className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{pessoa.nome}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {pessoa.dia} de {mesNome}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      {pessoa.dia}/{pessoa.mes}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function MemberDashboard() {
   const { data: courses = [] } = useQuery<Course[]>({
@@ -74,7 +203,12 @@ export default function MemberDashboard() {
         </Card>
       </div>
 
-      {/* Recent Courses */}
+      {/* Aniversariantes do Mês */}
+      <div>
+        <AniversariantesDoMes />
+      </div>
+
+      {/* Cursos Disponíveis */}
       <div>
         <h2 className="font-sans text-2xl font-semibold mb-6" data-testid="text-recent-courses">
           Cursos Disponíveis

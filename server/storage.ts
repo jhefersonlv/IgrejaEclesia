@@ -140,6 +140,9 @@ export interface IStorage {
   unenrollUserFromCourse(userId: number, courseId: number): Promise<void>;
   getEnrolledUsers(courseId: number): Promise<User[]>;
   getEnrolledCourses(userId: number): Promise<Course[]>;
+
+  // Aniversariantes
+  getAniversariantesByMonth(mes: number): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -569,8 +572,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSchedule(data: InsertSchedule): Promise<Schedule> {
-    // Extrai o ano e o mês diretamente da string para evitar problemas de fuso horário.
-    const [ano, mes] = data.data.split('-').map(Number);
+    // Parse a data corretamente sem conversão de timezone
+    // Esperamos uma string no formato "YYYY-MM-DD"
+    const [year, month] = data.data.split('-').map(Number);
+    const mes = month;
+    const ano = year;
 
     const result = await db.insert(schedules).values({ ...data, mes, ano }).returning();
     return result[0];
@@ -581,10 +587,9 @@ export class DatabaseStorage implements IStorage {
 
     // Se a data for alterada, recalcula mês e ano
     if (data.data) {
-      // Extrai o ano e o mês diretamente da string para evitar problemas de fuso horário.
-      const [ano, mes] = data.data.split('-').map(Number);
-      updateData.mes = mes;
-      updateData.ano = ano;
+      const [year, month] = data.data.split('-').map(Number);
+      updateData.mes = month;
+      updateData.ano = year;
     }
 
     const result = await db.update(schedules)

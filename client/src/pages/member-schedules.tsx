@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Schedule, ScheduleAssignment, User } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Music, Users as UsersIcon } from "lucide-react";
+import { Calendar, Music, Users as UsersIcon, Music2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";
@@ -10,6 +10,11 @@ import { useState } from "react";
 //  Interface atualizada para corresponder ao novo retorno da API
 interface ScheduleWithAssignments extends Schedule {
   assignments: (ScheduleAssignment & { user: User | null })[];
+}
+
+interface Louvor {
+  nome: string;
+  tonalidade: string;
 }
 
 const POSICOES_LOUVOR = [
@@ -63,6 +68,32 @@ export default function MemberSchedulesPage() {
     { value: 11, label: "Novembro" },
     { value: 12, label: "Dezembro" },
   ];
+
+  const renderLouvores = (schedule: ScheduleWithAssignments) => {
+    try {
+      const louvorData = schedule.louvores ? JSON.parse(schedule.louvores) : [];
+      if (!Array.isArray(louvorData) || louvorData.length === 0) return null;
+      
+      return (
+        <div className="mt-4 pt-4 border-t">
+          <div className="flex items-center gap-2 mb-3">
+            <Music2 className="w-4 h-4 text-primary" />
+            <span className="text-sm font-semibold">Louvores:</span>
+          </div>
+          <div className="space-y-2">
+            {louvorData.map((louvor: Louvor, index: number) => (
+              <div key={index} className="flex items-center justify-between bg-muted/50 p-2 rounded">
+                <span className="text-sm">{index + 1}. {louvor.nome}</span>
+                <Badge variant="secondary">{louvor.tonalidade}</Badge>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    } catch {
+      return null;
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -129,7 +160,7 @@ export default function MemberSchedulesPage() {
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <Calendar className="w-4 h-4" />
-                          {format(new Date(schedule.data), "dd 'de' MMMM", { locale: ptBR })}
+                          {format(new Date(schedule.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
                         </CardTitle>
                         {schedule.observacoes && (
                           <CardDescription>{schedule.observacoes}</CardDescription>
@@ -138,28 +169,29 @@ export default function MemberSchedulesPage() {
                       <CardContent>
                         <div className="space-y-2">
                           {POSICOES_LOUVOR.map((posicao) => {
-  const assignment = (schedule.assignments || []).find(
-    (a) => a.posicao === posicao.key
-  );
-  return (
-    <div key={posicao.key} className="flex justify-between items-center">
-      <span className="text-sm font-medium">{posicao.label}:</span>
-      <Badge
-        variant={
-          assignment?.userId === currentUser?.id ? "default" : "outline"
-        }
-        className={
-          assignment?.userId === currentUser?.id
-            ? "font-bold"
-            : ""
-        }
-      >
-        {assignment?.user?.nome ?? "Vazio"}
-      </Badge>
-    </div>
-  );
-})}
+                            const assignment = (schedule.assignments || []).find(
+                              (a) => a.posicao === posicao.key
+                            );
+                            return (
+                              <div key={posicao.key} className="flex justify-between items-center">
+                                <span className="text-sm font-medium">{posicao.label}:</span>
+                                <Badge
+                                  variant={
+                                    assignment?.userId === currentUser?.id ? "default" : "outline"
+                                  }
+                                  className={
+                                    assignment?.userId === currentUser?.id
+                                      ? "font-bold"
+                                      : ""
+                                  }
+                                >
+                                  {assignment?.user?.nome ?? "Vazio"}
+                                </Badge>
+                              </div>
+                            );
+                          })}
                         </div>
+                        {renderLouvores(schedule)}
                       </CardContent>
                     </Card>
                   ))}
@@ -188,7 +220,7 @@ export default function MemberSchedulesPage() {
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <Calendar className="w-4 h-4" />
-                          {format(new Date(schedule.data), "dd 'de' MMMM", { locale: ptBR })}
+                          {format(new Date(schedule.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
                         </CardTitle>
                         {schedule.observacoes && (
                           <CardDescription>{schedule.observacoes}</CardDescription>
@@ -196,24 +228,24 @@ export default function MemberSchedulesPage() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-2">
-  {(schedule.assignments || []).map((assignment, idx) => (
-    <div key={idx} className="flex items-center gap-2">
-      <span className="text-sm">Obreiro {idx + 1}:</span>
-      <Badge
-        variant={
-          assignment?.userId === currentUser?.id ? "default" : "outline"
-        }
-        className={
-          assignment?.userId === currentUser?.id
-            ? "font-bold"
-            : ""
-        }
-      >
-        {assignment?.user?.nome ?? "Não atribuído"}
-      </Badge>
-    </div>
-  ))}
-</div>
+                          {(schedule.assignments || []).map((assignment, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="text-sm">Obreiro {idx + 1}:</span>
+                              <Badge
+                                variant={
+                                  assignment?.userId === currentUser?.id ? "default" : "outline"
+                                }
+                                className={
+                                  assignment?.userId === currentUser?.id
+                                    ? "font-bold"
+                                    : ""
+                                }
+                              >
+                                {assignment?.user?.nome ?? "Não atribuído"}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
                       </CardContent>
                     </Card>
                   ))}

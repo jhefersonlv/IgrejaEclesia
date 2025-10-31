@@ -52,27 +52,6 @@ const scheduleFormSchema = z.object({
 
 type ScheduleFormData = z.infer<typeof scheduleFormSchema>;
 
-/**
- * Função utilitária para corrigir o desvio de fuso horário (timezone offset).
- * Quando o input[type="date"] retorna 'YYYY-MM-DD', o JS o interpreta como meia-noite
- * UTC, que no Brasil (UTC-3) é o dia anterior às 21h/22h.
- * Esta função ajusta a hora interna para que a data enviada permaneça no dia selecionado.
- * @param dateString A string de data (YYYY-MM-DD) do formulário.
- * @returns A string ISO 8601 corrigida.
- */
-const fixTimezoneOffset = (dateString: string): string => {
-    if (!dateString) return dateString;
-
-    const d = new Date(dateString);
-    // Adiciona o desvio do fuso horário local. Ex: Se o fuso for -180 minutos (UTC-3),
-    // ele adiciona 3 horas, garantindo que o valor UTC resultante caia no dia correto.
-    d.setMinutes(d.getMinutes() + d.getTimezoneOffset());
-    
-    // Retorna a data ISO (com hora 00:00:00 no fuso local, mas corrigida para UTC)
-    return d.toISOString(); 
-};
-
-
 export default function LeaderSchedulesPage() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -113,12 +92,12 @@ export default function LeaderSchedulesPage() {
 
   useEffect(() => {
     if (editingSchedule) {
-      // Ajusta a data para o formato de input[type="date"] (YYYY-MM-DD)
-      // Note: A data ainda pode estar com a hora errada, mas o input[type=date] só
-      // usa a parte da data e o fixTimezoneOffset resolverá o problema no envio.
+      // Corrige o problema de timezone ao editar
+      const dataLocal = editingSchedule.data.split('T')[0]; // Pega apenas YYYY-MM-DD
+      
       form.reset({
         ...editingSchedule,
-        data: editingSchedule.data.split('T')[0],
+        data: dataLocal,
       });
       const initialAssignments = editingSchedule.assignments.reduce((acc, assign) => {
         acc[assign.posicao] = assign.userId;
@@ -165,13 +144,8 @@ export default function LeaderSchedulesPage() {
 
   const createScheduleMutation = useMutation({
     mutationFn: async (data: ScheduleFormData) => {
-      
-      // Monta o payload para envio, garantindo que louvores seja string JSON ou null/""
       const scheduleData = {
         ...data,
-        // *** CORREÇÃO DE FUSO HORÁRIO E TRATAMENTO DE LOUVORES ***
-        data: fixTimezoneOffset(data.data), // Aplica a correção de fuso horário
-        // Garante que louvores seja null se vazio para evitar problemas de validação
         louvores: louvores.length > 0 ? JSON.stringify(louvores) : null,
       };
       
@@ -206,7 +180,6 @@ export default function LeaderSchedulesPage() {
       toast({
         title: "Escala criada!",
         description: "A escala foi criada com sucesso.",
-        duration: 3000,
       });
     },
     onError: (error: any) => {
@@ -214,7 +187,6 @@ export default function LeaderSchedulesPage() {
         title: "Erro ao criar escala",
         description: error.message || "Tente novamente.",
         variant: "destructive",
-        duration: 5000,
       });
     },
   });
@@ -223,12 +195,8 @@ export default function LeaderSchedulesPage() {
     mutationFn: async (data: ScheduleFormData) => {
       if (!editingSchedule) return;
       
-      // Monta o payload para envio, garantindo que louvores seja string JSON ou null/""
       const scheduleData = {
         ...data,
-        // *** CORREÇÃO DE FUSO HORÁRIO E TRATAMENTO DE LOUVORES ***
-        data: fixTimezoneOffset(data.data), // Aplica a correção de fuso horário
-        // Garante que louvores seja null se vazio para evitar problemas de validação
         louvores: louvores.length > 0 ? JSON.stringify(louvores) : null,
       };
       
@@ -271,7 +239,6 @@ export default function LeaderSchedulesPage() {
       toast({
         title: "Escala atualizada!",
         description: "A escala foi atualizada com sucesso.",
-        duration: 3000,
       });
     },
     onError: (error: any) => {
@@ -279,7 +246,6 @@ export default function LeaderSchedulesPage() {
         title: "Erro ao atualizar escala",
         description: error.message || "Tente novamente.",
         variant: "destructive",
-        duration: 5000,
       });
     },
   });
@@ -291,13 +257,11 @@ export default function LeaderSchedulesPage() {
       toast({
         title: "Escala removida",
         description: "A escala foi removida com sucesso.",
-        duration: 3000,
       });
     },
   });
 
   const onSubmit = (data: ScheduleFormData) => {
-    // A chamada mutate já tem a lógica de correção de data embutida acima.
     if (editingSchedule) {
       updateScheduleMutation.mutate(data);
     } else {
@@ -333,7 +297,6 @@ export default function LeaderSchedulesPage() {
     }
   };
 
-  // Funções de renderização de louvores permanecem inalteradas
   const renderLouvores = (schedule: ScheduleWithAssignments) => {
     try {
       const louvorData = schedule.louvores ? JSON.parse(schedule.louvores) : [];
@@ -363,7 +326,6 @@ export default function LeaderSchedulesPage() {
   const louvorSchedules = schedules.filter((s) => s.tipo === "louvor");
   const obreirosSchedules = schedules.filter((s) => s.tipo === "obreiros");
 
-  // Código JSX permanece inalterado
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4">
@@ -454,12 +416,7 @@ export default function LeaderSchedulesPage() {
                   <CardTitle className="flex justify-between items-center">
                     <span className="flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
-                      {/* Ao exibir, precisamos garantir que o Date() use o formato correto, mas se o DB
-                          salvou o dia certo, ele deve mostrar o dia certo. Usamos o toLocaleDateString 
-                          com timeZone: 'UTC' para forçar a renderização correta do dia, ignorando o horário
-                          que pode estar 21h do dia anterior no UTC se o fuso local for UTC-3. 
-                          Se o format(new Date(schedule.data), ...) funcionar, mantenha-o. */}
-                      {format(new Date(schedule.data), "dd 'de' MMMM", { locale: ptBR })}
+                      {format(new Date(schedule.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
                     </span>
                     <div className="flex gap-2">
                       <Button variant="outline" size="icon" onClick={() => handleEdit(schedule)}>
@@ -509,7 +466,7 @@ export default function LeaderSchedulesPage() {
                   <CardTitle className="flex justify-between items-center">
                     <span className="flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
-                      {format(new Date(schedule.data), "dd 'de' MMMM", { locale: ptBR })}
+                      {format(new Date(schedule.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
                     </span>
                     <div className="flex gap-2">
                       <Button variant="outline" size="icon" onClick={() => handleEdit(schedule)}>
