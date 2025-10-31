@@ -582,22 +582,22 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async updateSchedule(id: number, data: Partial<InsertSchedule>): Promise<Schedule> {
-    const updateData: any = { ...data };
+async updateSchedule(id: number, data: Partial<InsertSchedule>): Promise<Schedule> {
+  const updateData: any = { ...data };
 
-    // Se a data for alterada, recalcula mês e ano
-    if (data.data) {
-      const [year, month] = data.data.split('-').map(Number);
-      updateData.mes = month;
-      updateData.ano = year;
-    }
-
-    const result = await db.update(schedules)
-      .set(updateData)
-      .where(eq(schedules.id, id))
-      .returning();
-    return result[0];
+  // Se a data for alterada, recalcula mês e ano
+  if (data.data) {
+    const [year, month] = data.data.split('-').map(Number);
+    updateData.mes = month;
+    updateData.ano = year;
   }
+
+  const result = await db.update(schedules)
+    .set(updateData)
+    .where(eq(schedules.id, id))
+    .returning();
+  return result[0];
+}
 
   async deleteSchedule(id: number): Promise<void> {
     await db.delete(schedules).where(eq(schedules.id, id));

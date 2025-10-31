@@ -12,6 +12,7 @@ import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, apiUpload, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { formatDateForInput, formatDateDisplay } from "@/lib/dateUtils";
 
 const editProfileSchema = z.object({
   nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
@@ -59,7 +60,7 @@ export default function MemberProfile() {
       form.reset({
         nome: user.nome,
         email: user.email,
-        dataNascimento: user.dataNascimento ? new Date(user.dataNascimento).toISOString().split('T')[0] : "",
+        dataNascimento: user.dataNascimento ? formatDateForInput(user.dataNascimento) : "",
         profissao: user.profissao || "",
         endereco: user.endereco || "",
         bairro: user.bairro || "",
@@ -238,7 +239,7 @@ export default function MemberProfile() {
                 <div>
                   <p className="text-sm text-muted-foreground">Data de Nascimento</p>
                   <p className="font-medium" data-testid="text-profile-birthdate">
-                    {new Date(user.dataNascimento).toLocaleDateString('pt-BR')}
+                    {formatDateDisplay(user.dataNascimento)}
                   </p>
                 </div>
               </div>

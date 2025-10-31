@@ -17,6 +17,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { parseLocalDate, formatDateForInput } from "@/lib/dateUtils";
 
 interface ScheduleWithAssignments extends Schedule {
   assignments: (ScheduleAssignment & { user: User | null })[];
@@ -92,12 +93,9 @@ export default function LeaderSchedulesPage() {
 
   useEffect(() => {
     if (editingSchedule) {
-      // Corrige o problema de timezone ao editar
-      const dataLocal = editingSchedule.data.split('T')[0]; // Pega apenas YYYY-MM-DD
-      
       form.reset({
         ...editingSchedule,
-        data: dataLocal,
+        data: formatDateForInput(editingSchedule.data), // ✅ Usa a função
       });
       const initialAssignments = editingSchedule.assignments.reduce((acc, assign) => {
         acc[assign.posicao] = assign.userId;
@@ -416,7 +414,7 @@ export default function LeaderSchedulesPage() {
                   <CardTitle className="flex justify-between items-center">
                     <span className="flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
-                      {format(new Date(schedule.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
+                      {format(parseLocalDate(schedule.data), "dd 'de' MMMM", { locale: ptBR })} {/* ✅ Usa a função */}
                     </span>
                     <div className="flex gap-2">
                       <Button variant="outline" size="icon" onClick={() => handleEdit(schedule)}>
@@ -466,7 +464,7 @@ export default function LeaderSchedulesPage() {
                   <CardTitle className="flex justify-between items-center">
                     <span className="flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
-                      {format(new Date(schedule.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
+                      {format(parseLocalDate(schedule.data), "dd 'de' MMMM", { locale: ptBR })} {/* ✅ Usa a função */}
                     </span>
                     <div className="flex gap-2">
                       <Button variant="outline" size="icon" onClick={() => handleEdit(schedule)}>

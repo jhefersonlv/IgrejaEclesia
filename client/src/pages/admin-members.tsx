@@ -36,6 +36,7 @@ import { apiRequest, queryClient, apiUpload } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { z } from "zod";
+import { formatDateForInput } from "@/lib/dateUtils";
 
 // Schema for editing (all fields optional except nome and email)
 const editUserSchema = z.object({
@@ -198,7 +199,7 @@ export default function AdminMembers() {
       nome: member.nome,
       email: member.email,
       senha: "", // Senha opcional na edição
-      dataNascimento: member.dataNascimento || undefined,
+      dataNascimento: member.dataNascimento ? formatDateForInput(member.dataNascimento) : undefined,
       profissao: member.profissao || "",
       endereco: member.endereco || "",
       bairro: member.bairro || "",
