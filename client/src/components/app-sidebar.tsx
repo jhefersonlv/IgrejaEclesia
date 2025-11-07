@@ -14,17 +14,17 @@ import {
 import { BookOpen, Video, GraduationCap, User, LogOut, CalendarDays, Heart, Shield, Home, Users } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { title } from "process";
 
 interface AppSidebarProps {
   userNome?: string;
   isLider?: boolean;
   isAdmin?: boolean;
   isObreiro?: boolean;
+  isLouvor?: boolean;
   fotoUrl?: string;
 }
 
-export function AppSidebar({ userNome, isLider, isAdmin, isObreiro, fotoUrl }: AppSidebarProps) {
+export function AppSidebar({ userNome, isLider, isAdmin, isObreiro, isLouvor, fotoUrl }: AppSidebarProps) {
   const [location, setLocation] = useLocation();
 
   const items = [
@@ -54,22 +54,27 @@ export function AppSidebar({ userNome, isLider, isAdmin, isObreiro, fotoUrl }: A
       icon: Heart,
     },
     {
-      title: "Escalas",
-      url: isLider ? "/lider/escalas" : "/membro/escalas",
-      icon: CalendarDays,
-    },
-    {
       title: "Perfil",
       url: "/membro/perfil",
       icon: User,
     },
   ];
 
+  // Adicionar Visitantes se for obreiro
   if (isObreiro) {
     items.push({
       title: "Visitantes",
       url: "/membro/visitantes",
       icon: Users,
+    });
+  }
+
+  // Adicionar Escalas se for obreiro OU louvor
+  if (isObreiro || isLouvor) {
+    items.push({
+      title: "Escalas",
+      url: isLider ? "/lider/escalas" : "/membro/escalas",
+      icon: CalendarDays,
     });
   }
 

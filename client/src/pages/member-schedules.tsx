@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import type { Schedule, ScheduleAssignment, User } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Music, Users as UsersIcon, Music2 } from "lucide-react";
-import { format } from "date-fns";
+import { Calendar, Music, Users as UsersIcon, ChevronRight, Archive, Music2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { format, addDays, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useState } from "react";
 
-//  Interface atualizada para corresponder ao novo retorno da API
 interface ScheduleWithAssignments extends Schedule {
   assignments: (ScheduleAssignment & { user: User | null })[];
 }
@@ -17,57 +17,124 @@ interface Louvor {
   tonalidade: string;
 }
 
-const POSICOES_LOUVOR = [
-  { key: "teclado", label: "Teclado" },
-  { key: "violao", label: "Violão" },
-  { key: "baixo", label: "Baixo" },
-  { key: "bateria", label: "Bateria" },
-  { key: "voz", label: "Voz" },
-  { key: "backing", label: "Backing Vocal" },
-];
+const POSICOES_LABELS: Record<string, string> = {
+  teclado: "Teclado",
+  violao: "Violão",
+  baixo: "Baixo",
+  bateria: "Bateria",
+  voz: "Voz",
+  backing: "Backing Vocal",
+};
+
+type TabType = "proximas" | "atuais" | "anteriores";
 
 export default function MemberSchedulesPage() {
+  const [louvorTab, setLouvorTab] = useState<TabType>("proximas");
+  const [obreiroTab, setObreiroTab] = useState<TabType>("proximas");
+  const [showAllLouvor, setShowAllLouvor] = useState(false);
+  const [showAllObreiros, setShowAllObreiros] = useState(false);
+
   const currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);
+  
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
 
-  const { data: currentUser, isPending: isPendingUser } = useQuery<User>({
-    queryKey: ["/api/auth/me"],
+  // Fetch current user - tenta múltiplas formas
+  const { data: currentUser } = useQuery<User>({
+    queryKey: ["current-user"],
+    queryFn: async () => {
+      try {
+        const user = await apiRequest<User>("GET", "/api/users/me");
+        console.log("✅ Usuário obtido de /api/users/me:", user);
+        return user;
+      } catch (error) {
+        console.error("❌ Erro ao buscar /api/users/me:", error);
+        // Tenta endpoint alternativo
+        try {
+          const user = await apiRequest<User>("GET", "/api/auth/me");
+          console.log("✅ Usuário obtido de /api/auth/me:", user);
+          return user;
+        } catch (error2) {
+          console.error("❌ Erro ao buscar /api/auth/me:", error2);
+          throw error;
+        }
+      }
+    },
+    retry: 2,
   });
 
-  // Hook unificado para buscar escalas já com assignments e users
-  const { data: schedulesWithAssignments = [], isPending: isPendingSchedules } =
-    useQuery<ScheduleWithAssignments[]>({
-      queryKey: [`/api/schedules?month=${selectedMonth}&year=${selectedYear}`],
+  // Fetch schedules for current and nearby months to get enough data
+  const { data: allSchedules = [], isLoading } = useQuery<ScheduleWithAssignments[]>({
+    queryKey: ["member-schedules", "all", selectedYear],
+    queryFn: async () => {
+      const schedules: ScheduleWithAssignments[] = [];
+      // Busca escalas do mês anterior, atual e dos próximos 3 meses
+      for (let i = -1; i <= 3; i++) {
+        const date = new Date(selectedYear, selectedMonth - 1 + i, 1);
+        const month = date.getMonth() + 1;
+        const year = date.getFullYear();
+        
+        const response = await apiRequest<ScheduleWithAssignments[]>(
+          "GET",
+          `/api/schedules?month=${month}&year=${year}`
+        );
+        schedules.push(...response);
+      }
+      return schedules;
+    },
+  });
+
+  // Classificar escalas por categoria
+  const { proximas, atuais, anteriores } = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const thirtyDaysAgo = addDays(now, -30);
+
+    const proximas: ScheduleWithAssignments[] = [];
+    const atuais: ScheduleWithAssignments[] = [];
+    const anteriores: ScheduleWithAssignments[] = [];
+
+    console.log("🔍 DEBUG - Total de escalas recebidas:", allSchedules.length);
+    console.log("📅 Data atual:", now);
+    console.log("📋 Todas as escalas:", allSchedules);
+
+    allSchedules.forEach((schedule) => {
+      try {
+        const scheduleDate = parseISO(schedule.data);
+        scheduleDate.setHours(0, 0, 0, 0);
+
+        console.log(`📌 Processando escala: ${schedule.data} → ${scheduleDate}`);
+
+        if (scheduleDate >= addDays(now, 1)) {
+          console.log(`✅ PRÓXIMA: ${schedule.data}`);
+          proximas.push(schedule);
+        } else if (scheduleDate.getTime() === now.getTime()) {
+          console.log(`🔴 ATUAL: ${schedule.data}`);
+          atuais.push(schedule);
+        } else if (scheduleDate > thirtyDaysAgo && scheduleDate < now) {
+          console.log(`⏰ ANTERIOR: ${schedule.data}`);
+          anteriores.push(schedule);
+        } else {
+          console.log(`❌ IGNORADA (muito antiga): ${schedule.data}`);
+        }
+      } catch (error) {
+        console.error("❌ Erro ao processar escala:", schedule, error);
+      }
     });
 
-  // Filtros de ministério
-  const hasLouvorMinistry = currentUser?.ministerioLouvor ?? false;
-  const hasObreiroMinistry = currentUser?.ministerioObreiro ?? false;
-  const hasAnyMinistry = hasLouvorMinistry || hasObreiroMinistry;
+    console.log("📊 RESULTADO FINAL:");
+    console.log("  Próximas:", proximas.length);
+    console.log("  Atuais:", atuais.length);
+    console.log("  Anteriores:", anteriores.length);
 
-  const louvorSchedules = hasLouvorMinistry
-    ? schedulesWithAssignments.filter((s) => s.tipo === "louvor")
-    : [];
+    // Ordenar por data
+    proximas.sort((a, b) => parseISO(a.data).getTime() - parseISO(b.data).getTime());
+    atuais.sort((a, b) => parseISO(a.data).getTime() - parseISO(b.data).getTime());
+    anteriores.sort((a, b) => parseISO(b.data).getTime() - parseISO(a.data).getTime());
 
-  const obreirosSchedules = hasObreiroMinistry
-    ? schedulesWithAssignments.filter((s) => s.tipo === "obreiros")
-    : [];
-
-  const months = [
-    { value: 1, label: "Janeiro" },
-    { value: 2, label: "Fevereiro" },
-    { value: 3, label: "Março" },
-    { value: 4, label: "Abril" },
-    { value: 5, label: "Maio" },
-    { value: 6, label: "Junho" },
-    { value: 7, label: "Julho" },
-    { value: 8, label: "Agosto" },
-    { value: 9, label: "Setembro" },
-    { value: 10, label: "Outubro" },
-    { value: 11, label: "Novembro" },
-    { value: 12, label: "Dezembro" },
-  ];
+    return { proximas, atuais, anteriores };
+  }, [allSchedules]);
 
   const renderLouvores = (schedule: ScheduleWithAssignments) => {
     try {
@@ -95,172 +162,179 @@ export default function MemberSchedulesPage() {
     }
   };
 
+  const TabButton = ({ tab, label, icon: Icon, count, isLouvor }: { tab: TabType; label: string; icon: any; count: number; isLouvor: boolean }) => {
+    const isActive = isLouvor ? louvorTab === tab : obreiroTab === tab;
+    
+    return (
+      <button
+        onClick={() => {
+          if (isLouvor) setLouvorTab(tab);
+          else setObreiroTab(tab);
+        }}
+        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+          isActive
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted text-muted-foreground hover:bg-muted/80"
+        }`}
+      >
+        <Icon className="w-4 h-4" />
+        {label} ({count})
+      </button>
+    );
+  };
+
+  const renderScheduleCards = (schedules: ScheduleWithAssignments[], tipo: "louvor" | "obreiros", displayLimit: number = 3) => {
+    console.log(`📊 Renderizando ${tipo} - Total: ${schedules.length}, Display limit: ${displayLimit}`);
+    console.log(`👤 Current user ID: ${currentUser?.id}`);
+    
+    if (schedules.length === 0) {
+      return (
+        <p className="text-muted-foreground text-center py-8">
+          Nenhuma escala encontrada nesta categoria.
+        </p>
+      );
+    }
+
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {schedules.slice(0, displayLimit).map((schedule) => (
+          <Card key={schedule.id}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                {format(new Date(schedule.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
+              </CardTitle>
+              {schedule.observacoes && <CardDescription>{schedule.observacoes}</CardDescription>}
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {(schedule.assignments || []).map((assign) => {
+                const isCurrentUser = assign.user && currentUser && assign.user.id === currentUser.id;
+                console.log(`🔍 Verificando: ${assign.user?.nome} (ID: ${assign.user?.id}) vs Current (ID: ${currentUser?.id}) = ${isCurrentUser}`);
+                
+                return (
+                  <div key={assign.id} className="flex justify-between items-center">
+                    <span className="text-sm font-medium">
+                      {tipo === "louvor" ? POSICOES_LABELS[assign.posicao] || assign.posicao : `Obreiro ${assign.posicao.split('-')[1] ? parseInt(assign.posicao.split('-')[1]) + 1 : 1}`}:
+                    </span>
+                    <Badge variant={isCurrentUser ? "default" : assign.user ? "secondary" : "outline"}>
+                      {assign.user ? assign.user.nome : "Vazio"}
+                    </Badge>
+                  </div>
+                );
+              })}
+              {tipo === "louvor" && renderLouvores(schedule)}
+            </CardContent>
+          </Card>
+        ))}
+        {schedules.length > displayLimit && (
+          <div className="col-span-full text-center py-4">
+            <p className="text-sm text-muted-foreground">
+              +{schedules.length - displayLimit} escala(s) adicional(is)
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const louvorSchedules = {
+    proximas: proximas.filter((s) => s.tipo === "louvor"),
+    atuais: atuais.filter((s) => s.tipo === "louvor"),
+    anteriores: anteriores.filter((s) => s.tipo === "louvor"),
+  };
+
+  const obreiroSchedules = {
+    proximas: proximas.filter((s) => s.tipo === "obreiros"),
+    atuais: atuais.filter((s) => s.tipo === "obreiros"),
+    anteriores: anteriores.filter((s) => s.tipo === "obreiros"),
+  };
+
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="font-sans text-4xl font-semibold mb-2">
-            Escalas
-          </h1>
-          <p className="text-lg text-muted-foreground">
-            Visualize as escalas de louvor e obreiros
-          </p>
-        </div>
-
-        <div className="flex gap-2">
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-            className="px-3 py-2 border rounded-md"
-          >
-            {months.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            className="px-3 py-2 border rounded-md"
-          >
-            <option value={2024}>2024</option>
-            <option value={2025}>2025</option>
-            <option value={2026}>2026</option>
-          </select>
-        </div>
+      <div>
+        <h1 className="font-sans text-4xl font-semibold mb-2">Minhas Escalas</h1>
+        <p className="text-lg text-muted-foreground">Visualize as escalas de louvor e obreiros que você faz parte.</p>
       </div>
 
-      {isPendingUser || isPendingSchedules ? (
-        <p className="text-center text-muted-foreground py-8">Carregando escalas...</p>
-      ) : !hasAnyMinistry ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground text-lg">
-              Você não está cadastrado em nenhum ministério.
-            </p>
-            <p className="text-muted-foreground mt-2">
-              Entre em contato com a administração para ser adicionado a um ministério.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-8">
-          {/* Escala de Louvor */}
-          {hasLouvorMinistry && (
-            <div>
-              <h2 className="font-sans text-2xl font-semibold mb-4 flex items-center gap-2">
-                <Music className="w-6 h-6 text-primary" />
-                Escala de Louvor
-              </h2>
-              {louvorSchedules.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {louvorSchedules.map((schedule) => (
-                    <Card key={schedule.id}>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          {format(new Date(schedule.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
-                        </CardTitle>
-                        {schedule.observacoes && (
-                          <CardDescription>{schedule.observacoes}</CardDescription>
-                        )}
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          {POSICOES_LOUVOR.map((posicao) => {
-                            const assignment = (schedule.assignments || []).find(
-                              (a) => a.posicao === posicao.key
-                            );
-                            return (
-                              <div key={posicao.key} className="flex justify-between items-center">
-                                <span className="text-sm font-medium">{posicao.label}:</span>
-                                <Badge
-                                  variant={
-                                    assignment?.userId === currentUser?.id ? "default" : "outline"
-                                  }
-                                  className={
-                                    assignment?.userId === currentUser?.id
-                                      ? "font-bold"
-                                      : ""
-                                  }
-                                >
-                                  {assignment?.user?.nome ?? "Vazio"}
-                                </Badge>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {renderLouvores(schedule)}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <Card>
-                  <CardContent className="py-8 text-center text-muted-foreground">
-                    Nenhuma escala de louvor cadastrada para este mês
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+      {/* Escalas de Louvor */}
+      <div>
+        <h2 className="font-sans text-2xl font-semibold mb-4 flex items-center gap-2">
+          <Music className="w-6 h-6 text-primary" />
+          Escalas de Louvor
+        </h2>
+        
+        <div className="flex gap-2 mb-6 items-center flex-wrap">
+          <TabButton tab="proximas" label="Próximas" icon={ChevronRight} count={louvorSchedules.proximas.length} isLouvor={true} />
+          {louvorSchedules.atuais.length > 0 && (
+            <TabButton tab="atuais" label="Hoje" icon={Calendar} count={louvorSchedules.atuais.length} isLouvor={true} />
           )}
-
-          {/* Escala de Obreiros */}
-          {hasObreiroMinistry && (
-            <div>
-              <h2 className="font-sans text-2xl font-semibold mb-4 flex items-center gap-2">
-                <UsersIcon className="w-6 h-6 text-primary" />
-                Escala de Obreiros
-              </h2>
-              {obreirosSchedules.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {obreirosSchedules.map((schedule) => (
-                    <Card key={schedule.id}>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          {format(new Date(schedule.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
-                        </CardTitle>
-                        {schedule.observacoes && (
-                          <CardDescription>{schedule.observacoes}</CardDescription>
-                        )}
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          {(schedule.assignments || []).map((assignment, idx) => (
-                            <div key={idx} className="flex items-center gap-2">
-                              <span className="text-sm">Obreiro {idx + 1}:</span>
-                              <Badge
-                                variant={
-                                  assignment?.userId === currentUser?.id ? "default" : "outline"
-                                }
-                                className={
-                                  assignment?.userId === currentUser?.id
-                                    ? "font-bold"
-                                    : ""
-                                }
-                              >
-                                {assignment?.user?.nome ?? "Não atribuído"}
-                              </Badge>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <Card>
-                  <CardContent className="py-8 text-center text-muted-foreground">
-                    Nenhuma escala de obreiros cadastrada para este mês
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+          {louvorSchedules.anteriores.length > 0 && (
+            <TabButton tab="anteriores" label="Anteriores" icon={Archive} count={louvorSchedules.anteriores.length} isLouvor={true} />
+          )}
+          
+          {/* Botão "Ver Todas" só na aba Próximas */}
+          {louvorTab === "proximas" && louvorSchedules.proximas.length > 3 && (
+            <button
+              onClick={() => setShowAllLouvor(!showAllLouvor)}
+              className="ml-auto text-sm font-medium text-primary hover:underline"
+            >
+              {showAllLouvor ? "Ver Menos" : "Ver Todas"}
+            </button>
           )}
         </div>
-      )}
+
+        
+        {isLoading ? (
+          <p>Carregando...</p>
+        ) : louvorTab === "proximas" ? (
+          renderScheduleCards(louvorSchedules.proximas, "louvor", showAllLouvor ? 999 : 3)
+        ) : louvorTab === "atuais" ? (
+          renderScheduleCards(louvorSchedules.atuais, "louvor", 999)
+        ) : (
+          renderScheduleCards(louvorSchedules.anteriores, "louvor", 999)
+        )}
+
+      </div>
+
+      {/* Escalas de Obreiros */}
+      <div>
+        <h2 className="font-sans text-2xl font-semibold mb-4 flex items-center gap-2">
+          <UsersIcon className="w-6 h-6 text-primary" />
+          Escalas de Obreiros
+        </h2>
+        
+        <div className="flex gap-2 mb-6 items-center flex-wrap">
+          <TabButton tab="proximas" label="Próximas" icon={ChevronRight} count={obreiroSchedules.proximas.length} isLouvor={false} />
+          {obreiroSchedules.atuais.length > 0 && (
+            <TabButton tab="atuais" label="Hoje" icon={Calendar} count={obreiroSchedules.atuais.length} isLouvor={false} />
+          )}
+          {obreiroSchedules.anteriores.length > 0 && (
+            <TabButton tab="anteriores" label="Anteriores" icon={Archive} count={obreiroSchedules.anteriores.length} isLouvor={false} />
+          )}
+          
+          {/* Botão "Ver Todas" só na aba Próximas */}
+          {obreiroTab === "proximas" && obreiroSchedules.proximas.length > 3 && (
+            <button
+              onClick={() => setShowAllObreiros(!showAllObreiros)}
+              className="ml-auto text-sm font-medium text-primary hover:underline"
+            >
+              {showAllObreiros ? "Ver Menos" : "Ver Todas"}
+            </button>
+          )}
+        </div>
+
+        
+        {isLoading ? (
+          <p>Carregando...</p>
+        ) : obreiroTab === "proximas" ? (
+          renderScheduleCards(obreiroSchedules.proximas, "obreiros", showAllObreiros ? 999 : 3)
+        ) : obreiroTab === "atuais" ? (
+          renderScheduleCards(obreiroSchedules.atuais, "obreiros", 999)
+        ) : (
+          renderScheduleCards(obreiroSchedules.anteriores, "obreiros", 999)
+        )}
+
+      </div>
     </div>
   );
 }

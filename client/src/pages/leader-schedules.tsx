@@ -10,12 +10,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, Trash2, Save, Pencil, Music, Users as UsersIcon, ChevronLeft, ChevronRight, X, Music2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Plus, Calendar, Trash2, Save, Pencil, Music, Users as UsersIcon, ChevronLeft, ChevronRight, X, Music2, Archive } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { format } from "date-fns";
+import { format, addDays, isBefore, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface ScheduleWithAssignments extends Schedule {
@@ -27,13 +27,15 @@ interface Louvor {
   tonalidade: string;
 }
 
-const POSICOES_LOUVOR = ["teclado", "violao", "baixo", "bateria", "voz", "backing"];
+const POSICOES_LOUVOR = ["teclado", "guitarra", "som", "violao", "baixo", "bateria", "ministro", "backing"];
 const POSICOES_LABELS: Record<string, string> = {
   teclado: "Teclado",
+  guitarra: "Guitarra",
+  som: "Som",
   violao: "Violão",
   baixo: "Baixo",
   bateria: "Bateria",
-  voz: "Voz",
+  ministro: "Ministro",
   backing: "Backing Vocal",
 };
 
@@ -52,6 +54,8 @@ const scheduleFormSchema = z.object({
 
 type ScheduleFormData = z.infer<typeof scheduleFormSchema>;
 
+type TabType = "proximas" | "atuais" | "anteriores";
+
 export default function LeaderSchedulesPage() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -60,8 +64,14 @@ export default function LeaderSchedulesPage() {
   const [louvores, setLouvores] = useState<Louvor[]>([]);
   const [novoLouvorNome, setNovoLouvorNome] = useState("");
   const [novoLouvorTom, setNovoLouvorTom] = useState("C");
+  const [louvorTab, setLouvorTab] = useState<TabType>("proximas");
+  const [obreiroTab, setObreiroTab] = useState<TabType>("proximas");
+  const [louvorViewAll, setLouvorViewAll] = useState(false);
+  const [obreiroViewAll, setObreiroViewAll] = useState(false);
 
   const currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);
+  
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
 
@@ -74,26 +84,65 @@ export default function LeaderSchedulesPage() {
     },
   });
 
-  const { data: schedules = [], isLoading } = useQuery<ScheduleWithAssignments[]>({
-    queryKey: ["schedules", selectedMonth, selectedYear],
+  // Fetch schedules for current and nearby months to get enough data
+  const { data: allSchedules = [], isLoading } = useQuery<ScheduleWithAssignments[]>({
+    queryKey: ["schedules", "all", selectedYear],
     queryFn: async () => {
-      const response = await apiRequest<ScheduleWithAssignments[]>(
-        "GET",
-        `/api/schedules?month=${selectedMonth}&year=${selectedYear}`
-      );
-      return response;
+      const schedules: ScheduleWithAssignments[] = [];
+      // Busca escalas do mês anterior, atual e dos próximos 3 meses
+      for (let i = -1; i <= 3; i++) {
+        const date = new Date(selectedYear, selectedMonth - 1 + i, 1);
+        const month = date.getMonth() + 1;
+        const year = date.getFullYear();
+        
+        const response = await apiRequest<ScheduleWithAssignments[]>(
+          "GET",
+          `/api/schedules?month=${month}&year=${year}`
+        );
+        schedules.push(...response);
+      }
+      return schedules;
     },
   });
 
-  const { data: allUsers = [] } = useQuery<User[]>({
-    queryKey: ["admin", "members"],
-    queryFn: () => apiRequest<User[]>("GET", "/api/admin/members"),
-  });
+  // Classificar escalas por categoria
+  const { proximas, atuais, anteriores } = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const thirtyDaysAgo = addDays(now, -30);
+
+    const proximas: ScheduleWithAssignments[] = [];
+    const atuais: ScheduleWithAssignments[] = [];
+    const anteriores: ScheduleWithAssignments[] = [];
+
+    allSchedules.forEach((schedule) => {
+      try {
+        const scheduleDate = parseISO(schedule.data);
+        scheduleDate.setHours(0, 0, 0, 0);
+
+        if (scheduleDate >= addDays(now, 1)) {
+          proximas.push(schedule);
+        } else if (scheduleDate.getTime() === now.getTime()) {
+          atuais.push(schedule);
+        } else if (scheduleDate > thirtyDaysAgo && scheduleDate < now) {
+          anteriores.push(schedule);
+        }
+      } catch (error) {
+        console.error("❌ Erro ao processar escala:", schedule, error);
+      }
+    });
+
+    // Ordenar por data
+    proximas.sort((a, b) => parseISO(a.data).getTime() - parseISO(b.data).getTime());
+    atuais.sort((a, b) => parseISO(a.data).getTime() - parseISO(b.data).getTime());
+    anteriores.sort((a, b) => parseISO(b.data).getTime() - parseISO(a.data).getTime());
+
+    return { proximas, atuais, anteriores };
+  }, [allSchedules]);
 
   useEffect(() => {
     if (editingSchedule) {
-      // Corrige o problema de timezone ao editar
-      const dataLocal = editingSchedule.data.split('T')[0]; // Pega apenas YYYY-MM-DD
+      const dataLocal = editingSchedule.data.split('T')[0];
       
       form.reset({
         ...editingSchedule,
@@ -105,7 +154,6 @@ export default function LeaderSchedulesPage() {
       }, {} as Record<string, number | null>);
       setAssignments(initialAssignments);
       
-      // Carrega os louvores se existirem
       try {
         const louvorData = editingSchedule.louvores ? JSON.parse(editingSchedule.louvores) : [];
         setLouvores(Array.isArray(louvorData) ? louvorData : []);
@@ -122,6 +170,22 @@ export default function LeaderSchedulesPage() {
       setLouvores([]);
     }
   }, [editingSchedule, form]);
+
+  const { data: allUsers = [] } = useQuery<User[]>({
+    queryKey: ["admin", "members"],
+    queryFn: () => apiRequest<User[]>("GET", "/api/admin/members"),
+  });
+
+  // Filtrar membros por ministério
+  const ministrosLouvor = useMemo(() => 
+    allUsers.filter(user => user.ministerioLouvor === true),
+    [allUsers]
+  );
+
+  const obreiros = useMemo(() => 
+    allUsers.filter(user => user.ministerioObreiro === true),
+    [allUsers]
+  );
 
   const adicionarLouvor = () => {
     if (!novoLouvorNome.trim()) {
@@ -172,7 +236,7 @@ export default function LeaderSchedulesPage() {
       return schedule;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["schedules", selectedMonth, selectedYear] });
+      await queryClient.invalidateQueries({ queryKey: ["schedules", "all"] });
       setIsDialogOpen(false);
       setAssignments({});
       setLouvores([]);
@@ -230,7 +294,7 @@ export default function LeaderSchedulesPage() {
       return schedule;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["schedules", selectedMonth, selectedYear] });
+      await queryClient.invalidateQueries({ queryKey: ["schedules", "all"] });
       setIsDialogOpen(false);
       setEditingSchedule(null);
       setAssignments({});
@@ -253,7 +317,7 @@ export default function LeaderSchedulesPage() {
   const deleteScheduleMutation = useMutation({
     mutationFn: async (id: number) => apiRequest("DELETE", `/api/schedules/${id}`),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["schedules", selectedMonth, selectedYear] });
+      await queryClient.invalidateQueries({ queryKey: ["schedules", "all", selectedYear] });
       toast({
         title: "Escala removida",
         description: "A escala foi removida com sucesso.",
@@ -277,24 +341,6 @@ export default function LeaderSchedulesPage() {
   const handleNew = () => {
     setEditingSchedule(null);
     setIsDialogOpen(true);
-  };
-
-  const handlePreviousMonth = () => {
-    if (selectedMonth === 1) {
-      setSelectedMonth(12);
-      setSelectedYear(selectedYear - 1);
-    } else {
-      setSelectedMonth(selectedMonth - 1);
-    }
-  };
-
-  const handleNextMonth = () => {
-    if (selectedMonth === 12) {
-      setSelectedMonth(1);
-      setSelectedYear(selectedYear + 1);
-    } else {
-      setSelectedMonth(selectedMonth + 1);
-    }
   };
 
   const renderLouvores = (schedule: ScheduleWithAssignments) => {
@@ -323,179 +369,177 @@ export default function LeaderSchedulesPage() {
     }
   };
 
-  const louvorSchedules = schedules.filter((s) => s.tipo === "louvor");
-  const obreirosSchedules = schedules.filter((s) => s.tipo === "obreiros");
+  const TabButton = ({ tab, label, icon: Icon, count, isLouvor }: { tab: TabType; label: string; icon: any; count: number; isLouvor: boolean }) => {
+    const isActive = isLouvor ? louvorTab === tab : obreiroTab === tab;
+    
+    return (
+      <button
+        onClick={() => {
+          if (isLouvor) setLouvorTab(tab);
+          else setObreiroTab(tab);
+        }}
+        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+          isActive
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted text-muted-foreground hover:bg-muted/80"
+        }`}
+      >
+        <Icon className="w-4 h-4" />
+        {label} ({count})
+      </button>
+    );
+  };
+
+  const renderScheduleCards = (schedules: ScheduleWithAssignments[], tipo: "louvor" | "obreiros", displayLimit: number = 3) => {
+    if (schedules.length === 0) {
+      return (
+        <p className="text-muted-foreground text-center py-8">
+          Nenhuma escala encontrada nesta categoria.
+        </p>
+      );
+    }
+
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {schedules.slice(0, displayLimit).map((schedule) => (
+          <Card key={schedule.id}>
+            <CardHeader>
+              <CardTitle className="flex justify-between items-center">
+                <span className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  {format(new Date(schedule.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="icon" onClick={() => handleEdit(schedule)}>
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button variant="destructive" size="icon" onClick={() => deleteScheduleMutation.mutate(schedule.id)}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardTitle>
+              {schedule.observacoes && <CardDescription>{schedule.observacoes}</CardDescription>}
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {(schedule.assignments || []).map((assign) => (
+                <div key={assign.id} className="flex justify-between items-center">
+                  <span className="text-sm font-medium">
+                    {tipo === "louvor" ? POSICOES_LABELS[assign.posicao] || assign.posicao : `Obreiro ${assign.posicao.split('-')[1] ? parseInt(assign.posicao.split('-')[1]) + 1 : 1}`}:
+                  </span>
+                  <Badge variant={assign.user ? "default" : "outline"}>
+                    {assign.user ? assign.user.nome : "Vazio"}
+                  </Badge>
+                </div>
+              ))}
+              {tipo === "louvor" && renderLouvores(schedule)}
+            </CardContent>
+          </Card>
+        ))}
+        {schedules.length > displayLimit && (
+          <div className="col-span-full text-center py-4">
+            <p className="text-sm text-muted-foreground">
+              +{schedules.length - displayLimit} escala(s) adicional(is)
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const louvorSchedules = {
+    proximas: proximas.filter((s) => s.tipo === "louvor"),
+    atuais: atuais.filter((s) => s.tipo === "louvor"),
+    anteriores: anteriores.filter((s) => s.tipo === "louvor"),
+  };
+
+  const obreiroSchedules = {
+    proximas: proximas.filter((s) => s.tipo === "obreiros"),
+    atuais: atuais.filter((s) => s.tipo === "obreiros"),
+    anteriores: anteriores.filter((s) => s.tipo === "obreiros"),
+  };
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="font-sans text-4xl font-semibold mb-2">Gerenciar Escalas</h1>
-            <p className="text-lg text-muted-foreground">Crie, edite e visualize as escalas de louvor e obreiros.</p>
-          </div>
-          <Button onClick={handleNew} className="flex items-center gap-2">
-            <Plus className="w-5 h-5" />
-            Nova Escala
-          </Button>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="font-sans text-4xl font-semibold mb-2">Gerenciar Escalas</h1>
+          <p className="text-lg text-muted-foreground">Crie, edite e visualize as escalas de louvor e obreiros.</p>
         </div>
-
-        {/* Seletor de Mês e Ano */}
-        <div className="flex items-center gap-4 bg-muted/50 p-4 rounded-lg">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handlePreviousMonth}
-            className="h-10 w-10"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-
-          <div className="flex gap-2 flex-1">
-            <Select
-              value={selectedMonth.toString()}
-              onValueChange={(value) => setSelectedMonth(parseInt(value))}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MESES.map((mes, index) => (
-                  <SelectItem key={index} value={(index + 1).toString()}>
-                    {mes}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={selectedYear.toString()}
-              onValueChange={(value) => setSelectedYear(parseInt(value))}
-            >
-              <SelectTrigger className="w-[120px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 1 + i).map((year) => (
-                  <SelectItem key={year} value={year.toString()}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleNextMonth}
-            className="h-10 w-10"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-
-          <div className="text-sm text-muted-foreground">
-            Total: <span className="font-semibold text-foreground">{schedules.length}</span> escalas
-          </div>
-        </div>
+        <Button onClick={handleNew} className="flex items-center gap-2">
+          <Plus className="w-5 h-5" />
+          Nova Escala
+        </Button>
       </div>
 
-      {/* Seção de Escalas de Louvor */}
+      {/* Escalas de Louvor */}
       <div>
         <h2 className="font-sans text-2xl font-semibold mb-4 flex items-center gap-2">
           <Music className="w-6 h-6 text-primary" />
-          Escalas de Louvor ({louvorSchedules.length})
+          Escalas de Louvor
         </h2>
+        <div className="flex gap-2 mb-6 items-center">
+          <TabButton tab="proximas" label="Próximas" icon={ChevronRight} count={louvorSchedules.proximas.length} isLouvor={true} />
+          {louvorSchedules.atuais.length > 0 && (
+            <TabButton tab="atuais" label="Hoje" icon={Calendar} count={louvorSchedules.atuais.length} isLouvor={true} />
+          )}
+          {louvorSchedules.anteriores.length > 0 && (
+            <TabButton tab="anteriores" label="Anteriores" icon={Archive} count={louvorSchedules.anteriores.length} isLouvor={true} />
+          )}
+          {louvorTab === "proximas" && (
+            <Button
+              variant={louvorViewAll ? "default" : "outline"}
+              size="sm"
+              onClick={() => setLouvorViewAll(!louvorViewAll)}
+            >
+              {louvorViewAll ? "Ver Menos" : "Ver Todas"}
+            </Button>
+          )}
+        </div>
+        
         {isLoading ? (
           <p>Carregando...</p>
-        ) : louvorSchedules.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {louvorSchedules.map((schedule) => (
-              <Card key={schedule.id}>
-                <CardHeader>
-                  <CardTitle className="flex justify-between items-center">
-                    <span className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      {format(new Date(schedule.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
-                    </span>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="icon" onClick={() => handleEdit(schedule)}>
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button variant="destructive" size="icon" onClick={() => deleteScheduleMutation.mutate(schedule.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardTitle>
-                  {schedule.observacoes && <CardDescription>{schedule.observacoes}</CardDescription>}
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {(schedule.assignments || []).map((assign) => (
-                    <div key={assign.id} className="flex justify-between items-center">
-                      <span className="text-sm font-medium">{POSICOES_LABELS[assign.posicao] || assign.posicao}:</span>
-                      <Badge variant={assign.user ? "default" : "outline"}>
-                        {assign.user ? assign.user.nome : "Vazio"}
-                      </Badge>
-                    </div>
-                  ))}
-                  {renderLouvores(schedule)}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+        ) : louvorTab === "proximas" ? (
+          renderScheduleCards(louvorSchedules.proximas, "louvor", louvorViewAll ? 999 : 3)
+        ) : louvorTab === "atuais" ? (
+          renderScheduleCards(louvorSchedules.atuais, "louvor", 999)
         ) : (
-          <p className="text-muted-foreground">
-            Nenhuma escala de louvor encontrada para {MESES[selectedMonth - 1]} de {selectedYear}.
-          </p>
+          renderScheduleCards(louvorSchedules.anteriores, "louvor", 999)
         )}
       </div>
 
-      {/* Seção de Escalas de Obreiros */}
+      {/* Escalas de Obreiros */}
       <div>
         <h2 className="font-sans text-2xl font-semibold mb-4 flex items-center gap-2">
           <UsersIcon className="w-6 h-6 text-primary" />
-          Escalas de Obreiros ({obreirosSchedules.length})
+          Escalas de Obreiros
         </h2>
+        <div className="flex gap-2 mb-6">
+          <TabButton tab="proximas" label="Próximas" icon={ChevronRight} count={obreiroSchedules.proximas.length} isLouvor={false} />
+          {obreiroSchedules.atuais.length > 0 && (
+            <TabButton tab="atuais" label="Hoje" icon={Calendar} count={obreiroSchedules.atuais.length} isLouvor={false} />
+          )}
+          {obreiroSchedules.anteriores.length > 0 && (
+            <TabButton tab="anteriores" label="Anteriores" icon={Archive} count={obreiroSchedules.anteriores.length} isLouvor={false} />
+          )}
+          {obreiroTab === "proximas" && (
+            <Button
+              variant={obreiroViewAll ? "default" : "outline"}
+              onClick={() => setObreiroViewAll(!obreiroViewAll)}
+              className="ml-auto"
+            >
+              {obreiroViewAll ? "Ver Menos" : "Ver Todas"}
+            </Button>
+          )}
+        </div>
+        
         {isLoading ? (
           <p>Carregando...</p>
-        ) : obreirosSchedules.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {obreirosSchedules.map((schedule) => (
-              <Card key={schedule.id}>
-                <CardHeader>
-                  <CardTitle className="flex justify-between items-center">
-                    <span className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      {format(new Date(schedule.data + 'T12:00:00'), "dd 'de' MMMM", { locale: ptBR })}
-                    </span>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="icon" onClick={() => handleEdit(schedule)}>
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button variant="destructive" size="icon" onClick={() => deleteScheduleMutation.mutate(schedule.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardTitle>
-                  {schedule.observacoes && <CardDescription>{schedule.observacoes}</CardDescription>}
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {(schedule.assignments || []).map((assign, index) => (
-                    <div key={assign.id} className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Obreiro {index + 1}:</span>
-                      <Badge variant={assign.user ? "default" : "outline"}>
-                        {assign.user ? assign.user.nome : "Vazio"}
-                      </Badge>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+        ) : obreiroTab === "proximas" ? (
+          renderScheduleCards(obreiroSchedules.proximas, "obreiros", obreiroViewAll ? 999 : 3)
+        ) : obreiroTab === "atuais" ? (
+          renderScheduleCards(obreiroSchedules.atuais, "obreiros", 999)
         ) : (
-          <p className="text-muted-foreground">
-            Nenhuma escala de obreiros encontrada para {MESES[selectedMonth - 1]} de {selectedYear}.
-          </p>
+          renderScheduleCards(obreiroSchedules.anteriores, "obreiros", 999)
         )}
       </div>
 
@@ -555,7 +599,7 @@ export default function LeaderSchedulesPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="null">Vazio</SelectItem>
-                          {allUsers.map((user) => (
+                          {ministrosLouvor.map((user) => (
                             <SelectItem key={user.id} value={user.id.toString()}>
                               {user.nome}
                             </SelectItem>
@@ -581,7 +625,7 @@ export default function LeaderSchedulesPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="null">Vazio</SelectItem>
-                          {allUsers.map((user) => (
+                          {obreiros.map((user) => (
                             <SelectItem key={user.id} value={user.id.toString()}>
                               {user.nome}
                             </SelectItem>
@@ -592,7 +636,6 @@ export default function LeaderSchedulesPage() {
                   ))}
             </div>
 
-            {/* Seção de Louvores - Apenas para escalas de louvor */}
             {form.watch("tipo") === "louvor" && (
               <div className="space-y-4 border-t pt-4">
                 <h3 className="font-semibold flex items-center gap-2">
@@ -600,7 +643,6 @@ export default function LeaderSchedulesPage() {
                   Louvores e Tonalidades
                 </h3>
                 
-                {/* Lista de Louvores */}
                 {louvores.length > 0 && (
                   <div className="space-y-2 mb-4">
                     {louvores.map((louvor, index) => (
@@ -622,7 +664,6 @@ export default function LeaderSchedulesPage() {
                   </div>
                 )}
 
-                {/* Adicionar Novo Louvor */}
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <Input

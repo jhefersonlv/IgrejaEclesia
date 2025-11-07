@@ -39,6 +39,7 @@ export function MemberLayout({ children }: MemberLayoutProps) {
         <AppSidebar 
           userNome={user.nome} 
           isLider={user.isLider} 
+          isLouvor={user.ministerioLouvor}
           isAdmin={user.isAdmin}
           isObreiro={user.ministerioObreiro}
         />

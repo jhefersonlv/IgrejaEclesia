@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Users, Plus, Search, Download, Trash2, Shield, Pencil } from "lucide-react";
+import { Users, Plus, Search, Download, Trash2, Shield, Pencil, Upload, AlertCircle, CheckCircle } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { User, InsertUser } from "@shared/schema";
 import { useForm } from "react-hook-form";
@@ -36,6 +36,7 @@ import { apiRequest, queryClient, apiUpload } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { z } from "zod";
+import * as XLSX from "xlsx";
 
 // Schema for editing (all fields optional except nome and email)
 const editUserSchema = z.object({
@@ -59,10 +60,18 @@ type EditUserForm = z.infer<typeof editUserSchema>;
 export default function AdminMembers() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterBairro, setFilterBairro] = useState("");
   const [filterProfissao, setFilterProfissao] = useState("");
+  
+  // Estados para importação
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importStatus, setImportStatus] = useState<{ tipo: 'sucesso' | 'erro' | 'aviso'; mensagem: string } | null>(null);
+  const [isImportLoading, setIsImportLoading] = useState(false);
+  
   const { toast } = useToast();
 
   const { data: members = [], isLoading } = useQuery<User[]>({
@@ -136,6 +145,41 @@ export default function AdminMembers() {
     },
   });
 
+  const importMembersMutation = useMutation({
+    mutationFn: async (membros: InsertUser[]) => {
+      const results = [];
+      for (const membro of membros) {
+        try {
+          const result = await apiRequest<User>("POST", "/api/admin/members", membro);
+          results.push({ success: true, data: result });
+        } catch (error: any) {
+          results.push({ success: false, error: error.message });
+        }
+      }
+      return results;
+    },
+    onSuccess: (results) => {
+      const successCount = results.filter(r => r.success).length;
+      const errorCount = results.filter(r => !r.success).length;
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/members"] });
+      toast({
+        title: "Importação concluída!",
+        description: `${successCount} membro(s) importado(s) com sucesso${errorCount > 0 ? ` e ${errorCount} com erro` : ''}.`,
+      });
+      
+      setIsImportOpen(false);
+      limparImportacao();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro na importação",
+        description: error.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const deleteMemberMutation = useMutation({
     mutationFn: async (id: number) => {
       return await apiRequest("DELETE", `/api/admin/members/${id}`, undefined);
@@ -192,12 +236,176 @@ export default function AdminMembers() {
     },
   });
 
+  // Funcionalidades de Importação
+  const COLUNAS_ESPERADAS = ['Nome Completo', 'E-mail', 'Senha', 'Data de Nascimento', 'Profissão', 'Cidade', 'Bairro', 'Endereço'];
+
+  const downloadTemplate = () => {
+  const dados = [
+    {
+      'Nome Completo': 'João Silva',
+      'E-mail': 'joao@example.com',
+      'Senha': 'Senha123@',
+      'Data de Nascimento': '1990-05-15',
+      'Profissão': 'Engenheiro',
+      'Cidade': 'São Paulo',
+      'Bairro': 'Centro',
+      'Endereço': 'Rua das Flores, 123'
+    },
+    {
+      'Nome Completo': 'Maria Santos',
+      'E-mail': 'maria@example.com',
+      'Senha': 'Senha456@',
+      'Data de Nascimento': '1988-08-22',
+      'Profissão': 'Médica',
+      'Cidade': 'São Paulo',
+      'Bairro': 'Vila Mariana',
+      'Endereço': 'Avenida Paulista, 456'
+    },
+    {
+      'Nome Completo': 'Pedro Oliveira',
+      'E-mail': 'pedro@example.com',
+      'Senha': 'Senha789@',
+      'Data de Nascimento': '1992-03-10',
+      'Profissão': 'Professor',
+      'Cidade': 'São Paulo',
+      'Bairro': 'Pinheiros',
+      'Endereço': 'Rua da Paz, 789'
+    },
+  ];
+
+  const ws = XLSX.utils.json_to_sheet(dados);
+  ws['!cols'] = [
+    { wch: 20 },
+    { wch: 25 },
+    { wch: 15 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 15 },
+    { wch: 18 },
+    { wch: 25 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Membros');
+  XLSX.writeFile(wb, 'Modelo_Membros.xlsx');
+};
+
+  const validarLinhaImportacao = (linha: any) => {
+    const erros: string[] = [];
+
+    if (!linha['Nome Completo'] || !linha['Nome Completo'].toString().trim()) {
+      erros.push('Nome Completo é obrigatório');
+    }
+
+    if (!linha['E-mail'] || !linha['E-mail'].toString().trim()) {
+      erros.push('E-mail é obrigatório');
+    } else if (!linha['E-mail'].toString().includes('@')) {
+      erros.push('E-mail inválido');
+    }
+
+    if (!linha['Senha'] || !linha['Senha'].toString().trim()) {
+      erros.push('Senha é obrigatória');
+    }
+
+    return erros;
+  };
+
+  const processarArquivoImportacao = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const arquivo = event.target.files?.[0];
+    if (!arquivo) return;
+
+    setIsImportLoading(true);
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const dados = e.target.result;
+        const workbook = XLSX.read(dados, { type: 'binary' });
+        const planilha = workbook.Sheets[workbook.SheetNames[0]];
+        const linhas = XLSX.utils.sheet_to_json(planilha);
+
+        if (linhas.length === 0) {
+          setImportStatus({
+            tipo: 'erro',
+            mensagem: 'A planilha não contém dados'
+          });
+          setIsImportLoading(false);
+          return;
+        }
+
+        const dadosComErros = linhas.map((linha: any, idx: number) => ({
+          ...linha,
+          _erros: validarLinhaImportacao(linha),
+          _indice: idx + 2
+        }));
+
+        const temErros = dadosComErros.some(d => d._erros.length > 0);
+
+        setImportPreview(dadosComErros);
+        setImportFile(arquivo);
+        setImportStatus(null);
+
+        if (temErros) {
+          setImportStatus({
+            tipo: 'aviso',
+            mensagem: `Existem ${dadosComErros.filter(d => d._erros.length > 0).length} linhas com erros.`
+          });
+        }
+      } catch (erro: any) {
+        setImportStatus({
+          tipo: 'erro',
+          mensagem: 'Erro ao processar arquivo: ' + erro.message
+        });
+        setImportPreview([]);
+        setImportFile(null);
+      }
+      setIsImportLoading(false);
+    };
+
+    reader.readAsBinaryString(arquivo);
+  };
+
+  const importarDados = () => {
+    const dadosValidos = importPreview.filter(d => d._erros.length === 0);
+
+    if (dadosValidos.length === 0) {
+      setImportStatus({
+        tipo: 'erro',
+        mensagem: 'Nenhuma linha válida para importar'
+      });
+      return;
+    }
+
+    const membrosParaImportar: InsertUser[] = dadosValidos.map(d => ({
+      nome: d['Nome Completo'],
+      email: d['E-mail'],
+      senha: d['Senha'],
+      profissao: d['Profissão'] || '',
+      endereco: d['Endereço'] || '',
+      bairro: d['Bairro'] || '',
+      cidade: d['Cidade'] || '',
+      dataNascimento: d['Data de Nascimento'] || undefined,
+      isAdmin: false,
+      ministerioLouvor: false,
+      ministerioObreiro: false,
+      fotoUrl: '',
+    }));
+
+    importMembersMutation.mutate(membrosParaImportar);
+  };
+
+  const limparImportacao = () => {
+    setImportPreview([]);
+    setImportFile(null);
+    setImportStatus(null);
+  };
+
   const handleEditMember = (member: User) => {
     setEditingMember(member);
     editForm.reset({
       nome: member.nome,
       email: member.email,
-      senha: "", // Senha opcional na edição
+      senha: "",
       dataNascimento: member.dataNascimento || undefined,
       profissao: member.profissao || "",
       endereco: member.endereco || "",
@@ -303,11 +511,163 @@ export default function AdminMembers() {
             {filteredMembers.length} membros cadastrados
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button onClick={exportToCSV} variant="outline" data-testid="button-export-csv">
             <Download className="w-4 h-4 mr-2" />
             Exportar CSV
           </Button>
+
+          {/* Dialog de Importação */}
+          <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" data-testid="button-import-members">
+                <Upload className="w-4 h-4 mr-2" />
+                Importar Membros
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Importar Membros</DialogTitle>
+                <DialogDescription>
+                  Importe cadastros em lote usando uma planilha Excel
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-6">
+                {/* Seção Download Template */}
+                <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-blue-600 text-white p-3 rounded-lg">
+                      <Download className="w-6 h-6" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-lg mb-2">Planilha de Exemplo</h3>
+                      <p className="text-gray-700 mb-4">Baixe o modelo para garantir que seus dados estejam no formato correto.</p>
+                      <Button
+                        onClick={downloadTemplate}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Baixar Modelo
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção Upload */}
+                <div>
+                  <Label className="text-base font-semibold mb-3 block">Selecione o arquivo</Label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition cursor-pointer">
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={processarArquivoImportacao}
+                      disabled={isImportLoading}
+                      className="absolute opacity-0 w-0 h-0"
+                      id="import-file-input"
+                    />
+                    <label htmlFor="import-file-input" className="cursor-pointer block">
+                      <Upload className="mx-auto text-gray-400 mb-2" size={32} />
+                      <p className="text-gray-700">
+                        {importFile ? importFile.name : 'Clique ou arraste um arquivo Excel aqui'}
+                      </p>
+                      <p className="text-sm text-gray-500 mt-2">Formatos: XLSX, XLS, CSV</p>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Status Messages */}
+                {importStatus && (
+                  <div className={`p-4 rounded-lg flex items-start gap-3 ${
+                    importStatus.tipo === 'sucesso' ? 'bg-green-50 border border-green-200' :
+                    importStatus.tipo === 'aviso' ? 'bg-yellow-50 border border-yellow-200' :
+                    'bg-red-50 border border-red-200'
+                  }`}>
+                    {importStatus.tipo === 'sucesso' ? (
+                      <CheckCircle className="text-green-600 flex-shrink-0 mt-0.5" size={20} />
+                    ) : (
+                      <AlertCircle className={`flex-shrink-0 mt-0.5 ${
+                        importStatus.tipo === 'aviso' ? 'text-yellow-600' : 'text-red-600'
+                      }`} size={20} />
+                    )}
+                    <p className={`${
+                      importStatus.tipo === 'sucesso' ? 'text-green-800' :
+                      importStatus.tipo === 'aviso' ? 'text-yellow-800' :
+                      'text-red-800'
+                    }`}>
+                      {importStatus.mensagem}
+                    </p>
+                  </div>
+                )}
+
+                {/* Preview */}
+                {importPreview.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold text-lg mb-3">Pré-visualização ({importPreview.length} registros)</h3>
+                    <div className="overflow-x-auto border rounded-lg max-h-64">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-gray-100">
+                          <TableRow>
+                            <TableHead className="w-12">#</TableHead>
+                            {COLUNAS_ESPERADAS.map(col => (
+                              <TableHead key={col}>{col}</TableHead>
+                            ))}
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {importPreview.map((linha, idx) => (
+                            <TableRow key={idx} className={linha._erros.length > 0 ? 'bg-red-50' : ''}>
+                              <TableCell className="text-gray-600 text-sm">{linha._indice}</TableCell>
+                              {COLUNAS_ESPERADAS.map(col => (
+                                <TableCell key={col} className="text-sm truncate max-w-xs">
+                                  {linha[col] || '-'}
+                                </TableCell>
+                              ))}
+                              <TableCell className="text-sm">
+                                {linha._erros.length > 0 ? (
+                                  <span className="text-red-600 flex items-center gap-1">
+                                    <AlertCircle size={14} />
+                                    {linha._erros[0]}
+                                  </span>
+                                ) : (
+                                  <span className="text-green-600 flex items-center gap-1">
+                                    <CheckCircle size={14} />
+                                    Válido
+                                  </span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Botões de Ação */}
+                {importPreview.length > 0 && (
+                  <div className="flex gap-3 justify-end pt-4 border-t">
+                    <Button
+                      onClick={limparImportacao}
+                      variant="outline"
+                      disabled={isImportLoading}
+                    >
+                      Limpar
+                    </Button>
+                    <Button
+                      onClick={importarDados}
+                      disabled={isImportLoading || importPreview.every(d => d._erros.length > 0)}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {isImportLoading ? 'Importando...' : `Importar ${importPreview.filter(d => d._erros.length === 0).length} membro(s)`}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-create-member">
