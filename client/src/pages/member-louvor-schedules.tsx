@@ -3,7 +3,7 @@ import { apiRequest } from "@/lib/queryClient";
 import type { Schedule, ScheduleAssignment, User } from "@shared/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Music, Users as UsersIcon, ChevronRight, Archive, Music2 } from "lucide-react";
+import { Calendar, Music, ChevronRight, Archive, Music2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { format, addDays, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -28,11 +28,10 @@ const POSICOES_LABELS: Record<string, string> = {
 
 type TabType = "proximas" | "atuais" | "anteriores";
 
-export default function MemberSchedulesPage() {
+export default function MemberLouvorSchedulesPage() {
   const [louvorTab, setLouvorTab] = useState<TabType>("proximas");
-  const [obreiroTab, setObreiroTab] = useState<TabType>("proximas");
+ 
   const [showAllLouvor, setShowAllLouvor] = useState(false);
-  const [showAllObreiros, setShowAllObreiros] = useState(false);
 
   const currentDate = new Date();
   currentDate.setHours(0, 0, 0, 0);
@@ -40,7 +39,7 @@ export default function MemberSchedulesPage() {
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
 
-  // Fetch current user - tenta múltiplas formas
+  // Fetch current user
   const { data: currentUser } = useQuery<User>({
     queryKey: ["current-user"],
     queryFn: async () => {
@@ -50,7 +49,6 @@ export default function MemberSchedulesPage() {
         return user;
       } catch (error) {
         console.error("❌ Erro ao buscar /api/users/me:", error);
-        // Tenta endpoint alternativo
         try {
           const user = await apiRequest<User>("GET", "/api/auth/me");
           console.log("✅ Usuário obtido de /api/auth/me:", user);
@@ -64,12 +62,11 @@ export default function MemberSchedulesPage() {
     retry: 2,
   });
 
-  // Fetch schedules for current and nearby months to get enough data
+  // Fetch schedules for current and nearby months
   const { data: allSchedules = [], isLoading } = useQuery<ScheduleWithAssignments[]>({
-    queryKey: ["member-schedules", "all", selectedYear],
+    queryKey: ["member-schedules-louvor", "all", selectedYear],
     queryFn: async () => {
       const schedules: ScheduleWithAssignments[] = [];
-      // Busca escalas do mês anterior, atual e dos próximos 3 meses
       for (let i = -1; i <= 3; i++) {
         const date = new Date(selectedYear, selectedMonth - 1 + i, 1);
         const month = date.getMonth() + 1;
@@ -79,7 +76,9 @@ export default function MemberSchedulesPage() {
           "GET",
           `/api/schedules?month=${month}&year=${year}`
         );
-        schedules.push(...response);
+        // Filtrar apenas escalas de louvor
+        const louvorSchedules = response.filter(s => s.tipo === "louvor");
+        schedules.push(...louvorSchedules);
       }
       return schedules;
     },
@@ -95,46 +94,30 @@ export default function MemberSchedulesPage() {
     const atuais: ScheduleWithAssignments[] = [];
     const anteriores: ScheduleWithAssignments[] = [];
 
-    console.log("🔍 DEBUG - Total de escalas recebidas:", allSchedules.length);
-    console.log("📅 Data atual:", now);
-    console.log("📋 Todas as escalas:", allSchedules);
-
     allSchedules.forEach((schedule) => {
       try {
         const scheduleDate = parseISO(schedule.data);
         scheduleDate.setHours(0, 0, 0, 0);
 
-        console.log(`📌 Processando escala: ${schedule.data} → ${scheduleDate}`);
-
         if (scheduleDate >= addDays(now, 1)) {
-          console.log(`✅ PRÓXIMA: ${schedule.data}`);
           proximas.push(schedule);
         } else if (scheduleDate.getTime() === now.getTime()) {
-          console.log(`🔴 ATUAL: ${schedule.data}`);
           atuais.push(schedule);
         } else if (scheduleDate > thirtyDaysAgo && scheduleDate < now) {
-          console.log(`⏰ ANTERIOR: ${schedule.data}`);
           anteriores.push(schedule);
-        } else {
-          console.log(`❌ IGNORADA (muito antiga): ${schedule.data}`);
         }
       } catch (error) {
         console.error("❌ Erro ao processar escala:", schedule, error);
       }
     });
 
-    console.log("📊 RESULTADO FINAL:");
-    console.log("  Próximas:", proximas.length);
-    console.log("  Atuais:", atuais.length);
-    console.log("  Anteriores:", anteriores.length);
-
-    // Ordenar por data
     proximas.sort((a, b) => parseISO(a.data).getTime() - parseISO(b.data).getTime());
     atuais.sort((a, b) => parseISO(a.data).getTime() - parseISO(b.data).getTime());
     anteriores.sort((a, b) => parseISO(b.data).getTime() - parseISO(a.data).getTime());
 
     return { proximas, atuais, anteriores };
   }, [allSchedules]);
+  
 
   const renderLouvores = (schedule: ScheduleWithAssignments) => {
     try {
@@ -162,15 +145,12 @@ export default function MemberSchedulesPage() {
     }
   };
 
-  const TabButton = ({ tab, label, icon: Icon, count, isLouvor }: { tab: TabType; label: string; icon: any; count: number; isLouvor: boolean }) => {
-    const isActive = isLouvor ? louvorTab === tab : obreiroTab === tab;
+  const TabButton = ({ tab, label, icon: Icon, count }: { tab: TabType; label: string; icon: any; count: number }) => {
+    const isActive = louvorTab === tab;
     
     return (
       <button
-        onClick={() => {
-          if (isLouvor) setLouvorTab(tab);
-          else setObreiroTab(tab);
-        }}
+        onClick={() => setLouvorTab(tab)}
         className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
           isActive
             ? "bg-primary text-primary-foreground"
@@ -183,10 +163,7 @@ export default function MemberSchedulesPage() {
     );
   };
 
-  const renderScheduleCards = (schedules: ScheduleWithAssignments[], tipo: "louvor" | "obreiros", displayLimit: number = 3) => {
-    console.log(`📊 Renderizando ${tipo} - Total: ${schedules.length}, Display limit: ${displayLimit}`);
-    console.log(`👤 Current user ID: ${currentUser?.id}`);
-    
+  const renderScheduleCards = (schedules: ScheduleWithAssignments[], displayLimit: number = 3) => {
     if (schedules.length === 0) {
       return (
         <p className="text-muted-foreground text-center py-8">
@@ -209,12 +186,11 @@ export default function MemberSchedulesPage() {
             <CardContent className="space-y-2">
               {(schedule.assignments || []).map((assign) => {
                 const isCurrentUser = assign.user && currentUser && assign.user.id === currentUser.id;
-                console.log(`🔍 Verificando: ${assign.user?.nome} (ID: ${assign.user?.id}) vs Current (ID: ${currentUser?.id}) = ${isCurrentUser}`);
                 
                 return (
                   <div key={assign.id} className="flex justify-between items-center">
                     <span className="text-sm font-medium">
-                      {tipo === "louvor" ? POSICOES_LABELS[assign.posicao] || assign.posicao : `Obreiro ${assign.posicao.split('-')[1] ? parseInt(assign.posicao.split('-')[1]) + 1 : 1}`}:
+                      {POSICOES_LABELS[assign.posicao] || assign.posicao}:
                     </span>
                     <Badge variant={isCurrentUser ? "default" : assign.user ? "secondary" : "outline"}>
                       {assign.user ? assign.user.nome : "Vazio"}
@@ -222,7 +198,7 @@ export default function MemberSchedulesPage() {
                   </div>
                 );
               })}
-              {tipo === "louvor" && renderLouvores(schedule)}
+              {renderLouvores(schedule)}
             </CardContent>
           </Card>
         ))}
@@ -237,104 +213,44 @@ export default function MemberSchedulesPage() {
     );
   };
 
-  const louvorSchedules = {
-    proximas: proximas.filter((s) => s.tipo === "louvor"),
-    atuais: atuais.filter((s) => s.tipo === "louvor"),
-    anteriores: anteriores.filter((s) => s.tipo === "louvor"),
-  };
-
-  const obreiroSchedules = {
-    proximas: proximas.filter((s) => s.tipo === "obreiros"),
-    atuais: atuais.filter((s) => s.tipo === "obreiros"),
-    anteriores: anteriores.filter((s) => s.tipo === "obreiros"),
-  };
-
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-sans text-4xl font-semibold mb-2">Minhas Escalas</h1>
-        <p className="text-lg text-muted-foreground">Visualize as escalas de louvor e obreiros que você faz parte.</p>
-      </div>
-
-      {/* Escalas de Louvor */}
-      <div>
-        <h2 className="font-sans text-2xl font-semibold mb-4 flex items-center gap-2">
-          <Music className="w-6 h-6 text-primary" />
+        <h1 className="font-sans text-4xl font-semibold mb-2 flex items-center gap-2">
+          <Music className="w-8 h-8 text-primary" />
           Escalas de Louvor
-        </h2>
-        
-        <div className="flex gap-2 mb-6 items-center flex-wrap">
-          <TabButton tab="proximas" label="Próximas" icon={ChevronRight} count={louvorSchedules.proximas.length} isLouvor={true} />
-          {louvorSchedules.atuais.length > 0 && (
-            <TabButton tab="atuais" label="Hoje" icon={Calendar} count={louvorSchedules.atuais.length} isLouvor={true} />
-          )}
-          {louvorSchedules.anteriores.length > 0 && (
-            <TabButton tab="anteriores" label="Anteriores" icon={Archive} count={louvorSchedules.anteriores.length} isLouvor={true} />
-          )}
-          
-          {/* Botão "Ver Todas" só na aba Próximas */}
-          {louvorTab === "proximas" && louvorSchedules.proximas.length > 3 && (
-            <button
-              onClick={() => setShowAllLouvor(!showAllLouvor)}
-              className="ml-auto text-sm font-medium text-primary hover:underline"
-            >
-              {showAllLouvor ? "Ver Menos" : "Ver Todas"}
-            </button>
-          )}
-        </div>
-
-        
-        {isLoading ? (
-          <p>Carregando...</p>
-        ) : louvorTab === "proximas" ? (
-          renderScheduleCards(louvorSchedules.proximas, "louvor", showAllLouvor ? 999 : 3)
-        ) : louvorTab === "atuais" ? (
-          renderScheduleCards(louvorSchedules.atuais, "louvor", 999)
-        ) : (
-          renderScheduleCards(louvorSchedules.anteriores, "louvor", 999)
-        )}
-
+        </h1>
+        <p className="text-lg text-muted-foreground">Visualize as escalas de louvor que você faz parte.</p>
       </div>
 
-      {/* Escalas de Obreiros */}
-      <div>
-        <h2 className="font-sans text-2xl font-semibold mb-4 flex items-center gap-2">
-          <UsersIcon className="w-6 h-6 text-primary" />
-          Escalas de Obreiros
-        </h2>
-        
-        <div className="flex gap-2 mb-6 items-center flex-wrap">
-          <TabButton tab="proximas" label="Próximas" icon={ChevronRight} count={obreiroSchedules.proximas.length} isLouvor={false} />
-          {obreiroSchedules.atuais.length > 0 && (
-            <TabButton tab="atuais" label="Hoje" icon={Calendar} count={obreiroSchedules.atuais.length} isLouvor={false} />
-          )}
-          {obreiroSchedules.anteriores.length > 0 && (
-            <TabButton tab="anteriores" label="Anteriores" icon={Archive} count={obreiroSchedules.anteriores.length} isLouvor={false} />
-          )}
-          
-          {/* Botão "Ver Todas" só na aba Próximas */}
-          {obreiroTab === "proximas" && obreiroSchedules.proximas.length > 3 && (
-            <button
-              onClick={() => setShowAllObreiros(!showAllObreiros)}
-              className="ml-auto text-sm font-medium text-primary hover:underline"
-            >
-              {showAllObreiros ? "Ver Menos" : "Ver Todas"}
-            </button>
-          )}
-        </div>
-
-        
-        {isLoading ? (
-          <p>Carregando...</p>
-        ) : obreiroTab === "proximas" ? (
-          renderScheduleCards(obreiroSchedules.proximas, "obreiros", showAllObreiros ? 999 : 3)
-        ) : obreiroTab === "atuais" ? (
-          renderScheduleCards(obreiroSchedules.atuais, "obreiros", 999)
-        ) : (
-          renderScheduleCards(obreiroSchedules.anteriores, "obreiros", 999)
+      <div className="flex gap-2 mb-6 items-center flex-wrap">
+        <TabButton tab="proximas" label="Próximas" icon={ChevronRight} count={proximas.length} />
+        {atuais.length > 0 && (
+          <TabButton tab="atuais" label="Hoje" icon={Calendar} count={atuais.length} />
         )}
-
+        {anteriores.length > 0 && (
+          <TabButton tab="anteriores" label="Anteriores" icon={Archive} count={anteriores.length} />
+        )}
+        
+        {louvorTab === "proximas" && proximas.length > 3 && (
+          <button
+            onClick={() => setShowAllLouvor(!showAllLouvor)}
+            className="ml-auto text-sm font-medium text-primary hover:underline"
+          >
+            {showAllLouvor ? "Ver Menos" : "Ver Todas"}
+          </button>
+        )}
       </div>
+
+      {isLoading ? (
+        <p className="text-center text-muted-foreground">Carregando...</p>
+      ) : louvorTab === "proximas" ? (
+        renderScheduleCards(proximas, showAllLouvor ? 999 : 3)
+      ) : louvorTab === "atuais" ? (
+        renderScheduleCards(atuais, 999)
+      ) : (
+        renderScheduleCards(anteriores, 999)
+      )}
     </div>
   );
 }

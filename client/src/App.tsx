@@ -15,7 +15,8 @@ import MemberCourses from "@/pages/member-courses";
 import MemberMaterials from "@/pages/member-materials";
 import MemberVideos from "@/pages/member-videos";
 import MemberProfile from "@/pages/member-profile";
-import MemberSchedules from "@/pages/member-schedules";
+import MemberLouvorSchedules from "@/pages/member-louvor-schedules";
+import MemberObreirosSchedules from "@/pages/member-obreiros-schedules";
 import LeaderSchedules from "@/pages/leader-schedules";
 import AdminDashboard from "@/pages/admin-dashboard";
 import AdminMembers from "@/pages/admin-members";
@@ -67,16 +68,28 @@ function Router() {
           <MemberPrayers />
         </MemberLayout>
       </Route>
-      <Route path="/membro/escalas">
+      
+      {/* Escalas de Louvor */}
+      <Route path="/membro/escalas/louvor">
         <MemberLayout>
-          <MemberSchedules />
+          <MemberLouvorSchedules />
         </MemberLayout>
       </Route>
+      
+      {/* Escalas de Obreiros */}
+      <Route path="/membro/escalas/obreiros">
+        <MemberLayout>
+          <MemberObreirosSchedules />
+        </MemberLayout>
+      </Route>
+      
+      {/* Líder de Escalas */}
       <Route path="/lider/escalas">
         <MemberLayout>
           <LeaderSchedules />
         </MemberLayout>
       </Route>
+      
       <Route path="/membro/visitantes">
         <MemberLayout>
           <MemberVisitors />
