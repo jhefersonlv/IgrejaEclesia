@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Users, Plus, Search, Download, Trash2, Shield, Pencil, Upload, AlertCircle, CheckCircle } from "lucide-react";
+import { Users, Plus, Search, Download, Trash2, Shield, Pencil, Upload, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { User, InsertUser } from "@shared/schema";
 import { useForm } from "react-hook-form";
@@ -56,6 +56,42 @@ const editUserSchema = z.object({
 });
 
 type EditUserForm = z.infer<typeof editUserSchema>;
+
+// Função para normalizar nomes de coluna
+const normalizarNomesColuna = (obj: any) => {
+  const mapa: Record<string, string> = {
+    'nome completo': 'Nome Completo',
+    'name': 'Nome Completo',
+    'nome': 'Nome Completo',
+    'e-mail': 'E-mail',
+    'email': 'E-mail',
+    'senha': 'Senha',
+    'password': 'Senha',
+    'data de nascimento': 'Data de Nascimento',
+    'nascimento': 'Data de Nascimento',
+    'birthdate': 'Data de Nascimento',
+    'profissão': 'Profissão',
+    'profissao': 'Profissão',
+    'profession': 'Profissão',
+    'cidade': 'Cidade',
+    'city': 'Cidade',
+    'bairro': 'Bairro',
+    'neighborhood': 'Bairro',
+    'endereço': 'Endereço',
+    'endereco': 'Endereço',
+    'address': 'Endereço',
+  };
+
+  const novoObj: any = {};
+  
+  for (const [chave, valor] of Object.entries(obj)) {
+    const chaveNormalizada = chave.toLowerCase().trim();
+    const novaChave = mapa[chaveNormalizada] || chave;
+    novoObj[novaChave] = valor;
+  }
+  
+  return novoObj;
+};
 
 export default function AdminMembers() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -240,71 +276,79 @@ export default function AdminMembers() {
   const COLUNAS_ESPERADAS = ['Nome Completo', 'E-mail', 'Senha', 'Data de Nascimento', 'Profissão', 'Cidade', 'Bairro', 'Endereço'];
 
   const downloadTemplate = () => {
-  const dados = [
-    {
-      'Nome Completo': 'João Silva',
-      'E-mail': 'joao@example.com',
-      'Senha': 'Senha123@',
-      'Data de Nascimento': '1990-05-15',
-      'Profissão': 'Engenheiro',
-      'Cidade': 'São Paulo',
-      'Bairro': 'Centro',
-      'Endereço': 'Rua das Flores, 123'
-    },
-    {
-      'Nome Completo': 'Maria Santos',
-      'E-mail': 'maria@example.com',
-      'Senha': 'Senha456@',
-      'Data de Nascimento': '1988-08-22',
-      'Profissão': 'Médica',
-      'Cidade': 'São Paulo',
-      'Bairro': 'Vila Mariana',
-      'Endereço': 'Avenida Paulista, 456'
-    },
-    {
-      'Nome Completo': 'Pedro Oliveira',
-      'E-mail': 'pedro@example.com',
-      'Senha': 'Senha789@',
-      'Data de Nascimento': '1992-03-10',
-      'Profissão': 'Professor',
-      'Cidade': 'São Paulo',
-      'Bairro': 'Pinheiros',
-      'Endereço': 'Rua da Paz, 789'
-    },
-  ];
+    const dados = [
+      {
+        'Nome Completo': 'João Silva',
+        'E-mail': 'joao@example.com',
+        'Senha': 'Senha123@',
+        'Data de Nascimento': '1990-05-15',
+        'Profissão': 'Engenheiro',
+        'Cidade': 'São Paulo',
+        'Bairro': 'Centro',
+        'Endereço': 'Rua das Flores, 123'
+      },
+      {
+        'Nome Completo': 'Maria Santos',
+        'E-mail': 'maria@example.com',
+        'Senha': 'Senha456@',
+        'Data de Nascimento': '1988-08-22',
+        'Profissão': 'Médica',
+        'Cidade': 'São Paulo',
+        'Bairro': 'Vila Mariana',
+        'Endereço': 'Avenida Paulista, 456'
+      },
+      {
+        'Nome Completo': 'Pedro Oliveira',
+        'E-mail': 'pedro@example.com',
+        'Senha': 'Senha789@',
+        'Data de Nascimento': '1992-03-10',
+        'Profissão': 'Professor',
+        'Cidade': 'São Paulo',
+        'Bairro': 'Pinheiros',
+        'Endereço': 'Rua da Paz, 789'
+      },
+    ];
 
-  const ws = XLSX.utils.json_to_sheet(dados);
-  ws['!cols'] = [
-    { wch: 20 },
-    { wch: 25 },
-    { wch: 15 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 15 },
-    { wch: 18 },
-    { wch: 25 }
-  ];
+    const ws = XLSX.utils.json_to_sheet(dados);
+    ws['!cols'] = [
+      { wch: 20 },
+      { wch: 25 },
+      { wch: 15 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 15 },
+      { wch: 18 },
+      { wch: 25 }
+    ];
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Membros');
-  XLSX.writeFile(wb, 'Modelo_Membros.xlsx');
-};
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Membros');
+    XLSX.writeFile(wb, 'Modelo_Membros.xlsx');
+  };
 
   const validarLinhaImportacao = (linha: any) => {
     const erros: string[] = [];
 
     if (!linha['Nome Completo'] || !linha['Nome Completo'].toString().trim()) {
       erros.push('Nome Completo é obrigatório');
+    } else if (linha['Nome Completo'].toString().trim().length < 3) {
+      erros.push('Nome deve ter pelo menos 3 caracteres');
     }
 
     if (!linha['E-mail'] || !linha['E-mail'].toString().trim()) {
       erros.push('E-mail é obrigatório');
-    } else if (!linha['E-mail'].toString().includes('@')) {
-      erros.push('E-mail inválido');
+    } else {
+      const email = linha['E-mail'].toString().toLowerCase().trim();
+      const regexEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!regexEmail.test(email)) {
+        erros.push('E-mail inválido');
+      }
     }
 
     if (!linha['Senha'] || !linha['Senha'].toString().trim()) {
       erros.push('Senha é obrigatória');
+    } else if (linha['Senha'].toString().trim().length < 6) {
+      erros.push('Senha deve ter pelo menos 6 caracteres');
     }
 
     return erros;
@@ -319,10 +363,16 @@ export default function AdminMembers() {
 
     reader.onload = (e) => {
       try {
-        const dados = e.target.result;
-        const workbook = XLSX.read(dados, { type: 'binary' });
+        const workbook = XLSX.read(e.target.result, { 
+          type: 'array',
+          defval: ''
+        });
+
         const planilha = workbook.Sheets[workbook.SheetNames[0]];
-        const linhas = XLSX.utils.sheet_to_json(planilha);
+        const linhas = XLSX.utils.sheet_to_json(planilha, {
+          defval: '',
+          blankrows: false,
+        });
 
         if (linhas.length === 0) {
           setImportStatus({
@@ -333,11 +383,15 @@ export default function AdminMembers() {
           return;
         }
 
-        const dadosComErros = linhas.map((linha: any, idx: number) => ({
-          ...linha,
-          _erros: validarLinhaImportacao(linha),
-          _indice: idx + 2
-        }));
+        const dadosComErros = linhas.map((linha: any, idx: number) => {
+          const linhaLimpa = normalizarNomesColuna(linha);
+          return {
+            ...linhaLimpa,
+            _original: linha,
+            _erros: validarLinhaImportacao(linhaLimpa),
+            _indice: idx + 2
+          };
+        });
 
         const temErros = dadosComErros.some(d => d._erros.length > 0);
 
@@ -346,11 +400,19 @@ export default function AdminMembers() {
         setImportStatus(null);
 
         if (temErros) {
+          const totalErros = dadosComErros.filter(d => d._erros.length > 0).length;
           setImportStatus({
             tipo: 'aviso',
-            mensagem: `Existem ${dadosComErros.filter(d => d._erros.length > 0).length} linhas com erros.`
+            mensagem: `${totalErros} linha(s) com erro(s) - verifique os dados marcados em vermelho`
+          });
+        } else {
+          setImportStatus({
+            tipo: 'sucesso',
+            mensagem: `${linhas.length} linha(s) pronta(s) para importar`
           });
         }
+
+        console.log("📄 Amostra de dados normalizados:", dadosComErros[0]);
       } catch (erro: any) {
         setImportStatus({
           tipo: 'erro',
@@ -362,7 +424,31 @@ export default function AdminMembers() {
       setIsImportLoading(false);
     };
 
-    reader.readAsBinaryString(arquivo);
+    reader.readAsArrayBuffer(arquivo);
+  };
+
+  const formatarData = (valor: any) => {
+    if (!valor) return undefined;
+    
+    if (typeof valor === "number") {
+      const data = XLSX.SSF.parse_date_code(valor);
+      if (data) {
+        return `${data.y}-${String(data.m).padStart(2, '0')}-${String(data.d).padStart(2, '0')}`;
+      }
+    }
+    
+    if (typeof valor === "string") {
+      const str = valor.trim();
+      if (str.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+        const [dia, mes, ano] = str.split('/');
+        return `${ano}-${mes}-${dia}`;
+      }
+      if (str.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return str;
+      }
+    }
+    
+    return undefined;
   };
 
   const importarDados = () => {
@@ -376,21 +462,41 @@ export default function AdminMembers() {
       return;
     }
 
+    const emails = new Set();
+    const duplicados: string[] = [];
+    
+    for (const d of dadosValidos) {
+      const email = d['E-mail'].toLowerCase().trim();
+      if (emails.has(email)) {
+        duplicados.push(email);
+      }
+      emails.add(email);
+    }
+    
+    if (duplicados.length > 0) {
+      setImportStatus({
+        tipo: 'erro',
+        mensagem: `Duplicação detectada na planilha. E-mails duplicados: ${duplicados.join(', ')}`
+      });
+      return;
+    }
+
     const membrosParaImportar: InsertUser[] = dadosValidos.map(d => ({
-      nome: d['Nome Completo'],
-      email: d['E-mail'],
-      senha: d['Senha'],
-      profissao: d['Profissão'] || '',
-      endereco: d['Endereço'] || '',
-      bairro: d['Bairro'] || '',
-      cidade: d['Cidade'] || '',
-      dataNascimento: d['Data de Nascimento'] || undefined,
+      nome: d['Nome Completo'].toString().trim(),
+      email: d['E-mail'].toString().toLowerCase().trim(),
+      senha: d['Senha'].toString().trim(),
+      profissao: (d['Profissão'] || '').toString().trim(),
+      endereco: (d['Endereço'] || '').toString().trim(),
+      bairro: (d['Bairro'] || '').toString().trim(),
+      cidade: (d['Cidade'] || '').toString().trim(),
+      dataNascimento: formatarData(d['Data de Nascimento']),
       isAdmin: false,
       ministerioLouvor: false,
       ministerioObreiro: false,
       fotoUrl: '',
     }));
 
+    console.log("✅ Dados validados para importação:", membrosParaImportar);
     importMembersMutation.mutate(membrosParaImportar);
   };
 
@@ -658,8 +764,9 @@ export default function AdminMembers() {
                     <Button
                       onClick={importarDados}
                       disabled={isImportLoading || importPreview.every(d => d._erros.length > 0)}
-                      className="bg-green-600 hover:bg-green-700"
+                      className="bg-green-600 hover:bg-green-700 flex items-center gap-2"
                     >
+                      {isImportLoading && <Loader2 className="animate-spin w-4 h-4" />}
                       {isImportLoading ? 'Importando...' : `Importar ${importPreview.filter(d => d._erros.length === 0).length} membro(s)`}
                     </Button>
                   </div>
