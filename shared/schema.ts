@@ -328,7 +328,7 @@ export const loginSchema = z.object({
 export const insertMinisterioSchema = z.object({
   nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
   descricao: z.string().optional(),
-  tipo: z.string().min(1, "Tipo é obrigatório"),
+  tipo: z.string().optional().default("outro"),
   ativo: z.boolean().optional(),
 });
 

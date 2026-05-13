@@ -100,7 +100,6 @@ export default function AdminMembers() {
   const [isMinisteriosOpen, setIsMinisteriosOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<User | null>(null);
   const [novoMinisterioNome, setNovoMinisterioNome] = useState("");
-  const [novoMinisterioTipo, setNovoMinisterioTipo] = useState("outro");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterBairro, setFilterBairro] = useState("");
   const [filterProfissao, setFilterProfissao] = useState("");
@@ -706,21 +705,12 @@ export default function AdminMembers() {
                     placeholder="Nome do ministério"
                     value={novoMinisterioNome}
                     onChange={(e) => setNovoMinisterioNome(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && novoMinisterioNome.trim() && criarMinisterioMutation.mutate({ nome: novoMinisterioNome.trim(), tipo: "outro" })}
                   />
-                  <Select value={novoMinisterioTipo} onValueChange={setNovoMinisterioTipo}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="louvor">Louvor</SelectItem>
-                      <SelectItem value="obreiros">Obreiros</SelectItem>
-                      <SelectItem value="outro">Outro</SelectItem>
-                    </SelectContent>
-                  </Select>
                   <Button
                     className="w-full"
                     disabled={!novoMinisterioNome.trim() || criarMinisterioMutation.isPending}
-                    onClick={() => criarMinisterioMutation.mutate({ nome: novoMinisterioNome.trim(), tipo: novoMinisterioTipo })}
+                    onClick={() => criarMinisterioMutation.mutate({ nome: novoMinisterioNome.trim(), tipo: "outro" })}
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Criar Ministério
@@ -733,10 +723,7 @@ export default function AdminMembers() {
                   )}
                   {todosMinisterios.map((m) => (
                     <div key={m.id} className="flex items-center justify-between p-2 border rounded-md">
-                      <div>
-                        <span className="font-medium">{m.nome}</span>
-                        <Badge variant="outline" className="ml-2 text-xs">{m.tipo}</Badge>
-                      </div>
+                      <span className="font-medium">{m.nome}</span>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -973,35 +960,6 @@ export default function AdminMembers() {
                     <Input id="fotoUrl" type="file" data-testid="input-fotoUrl" />
                   </div>
 
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Ministérios</Label>
-                    <div className="flex items-center space-x-4">
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="ministerioLouvor"
-                          {...form.register("ministerioLouvor")}
-                          className="w-4 h-4 rounded border-input"
-                          data-testid="checkbox-louvor"
-                        />
-                        <Label htmlFor="ministerioLouvor" className="font-normal cursor-pointer">
-                          Louvor
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="ministerioObreiro"
-                          {...form.register("ministerioObreiro")}
-                          className="w-4 h-4 rounded border-input"
-                          data-testid="checkbox-obreiro"
-                        />
-                        <Label htmlFor="ministerioObreiro" className="font-normal cursor-pointer">
-                          Obreiro
-                        </Label>
-                      </div>
-                    </div>
-                  </div>
 
                   <div className="space-y-2 md:col-span-2">
                     <div className="flex items-center space-x-2">
