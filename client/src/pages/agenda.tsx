@@ -77,6 +77,7 @@ interface CultoFormData {
   dataInicio: string;
   dataFim: string;
   isPublico: boolean;
+  escalaMinisterioIds: number[];
 }
 
 function CultosRecorrentesDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -88,30 +89,46 @@ function CultosRecorrentesDialog({ open, onOpenChange }: { open: boolean; onOpen
     enabled: open,
   });
 
-  const { register, handleSubmit, control, reset, formState: { errors } } = useForm<CultoFormData>({
-    defaultValues: { titulo: "", descricao: "", local: "eclesia", diaSemana: "0", dataInicio: "", dataFim: "", isPublico: true },
+  const { data: todosMinisterios = [] } = useQuery<{ id: number; nome: string }[]>({
+    queryKey: ["/api/ministerios"],
+    enabled: open,
   });
+
+  const { register, handleSubmit, control, reset, watch, setValue, formState: { errors } } = useForm<CultoFormData>({
+    defaultValues: { titulo: "", descricao: "", local: "eclesia", diaSemana: "0", dataInicio: "", dataFim: "", isPublico: true, escalaMinisterioIds: [] },
+  });
+
+  const escalaMinisterioIds = watch("escalaMinisterioIds");
 
   const saveMutation = useMutation({
     mutationFn: async (data: CultoFormData) => {
+      const { escalaMinisterioIds: ministerioIds, ...rest } = data;
       const payload = {
-        titulo: data.titulo,
+        ...rest,
         descricao: data.descricao || null,
-        local: data.local,
         diaSemana: parseInt(data.diaSemana),
-        dataInicio: data.dataInicio,
         dataFim: data.dataFim || null,
-        isPublico: data.isPublico,
       };
+      let cultoId: number;
       if (editingId) {
-        return apiRequest("PATCH", `/api/admin/cultos-recorrentes/${editingId}`, payload);
+        const updated = await apiRequest<{ id: number }>("PATCH", `/api/admin/cultos-recorrentes/${editingId}`, payload);
+        cultoId = updated.id;
+      } else {
+        const created = await apiRequest<{ id: number }>("POST", "/api/admin/cultos-recorrentes", payload);
+        cultoId = created.id;
+        for (const mid of (ministerioIds ?? [])) {
+          await apiRequest("POST", "/api/admin/schedule-requests", {
+            cultoRecorrenteId: cultoId,
+            ministerioId: mid,
+          });
+        }
       }
-      return apiRequest("POST", "/api/admin/cultos-recorrentes", payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cultos-recorrentes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
-      reset();
+      queryClient.invalidateQueries({ queryKey: ["/api/schedule-requests/pendentes"] });
+      reset({ titulo: "", descricao: "", local: "eclesia", diaSemana: "0", dataInicio: "", dataFim: "", isPublico: true, escalaMinisterioIds: [] });
       setEditingId(null);
       toast({ title: editingId ? "Culto atualizado!" : "Culto criado!" });
     },
@@ -138,12 +155,13 @@ function CultosRecorrentesDialog({ open, onOpenChange }: { open: boolean; onOpen
       dataInicio: c.dataInicio,
       dataFim: c.dataFim ?? "",
       isPublico: c.isPublico,
+      escalaMinisterioIds: [],
     });
   };
 
   const openNew = () => {
     setEditingId(null);
-    reset({ titulo: "", descricao: "", local: "eclesia", diaSemana: "0", dataInicio: "", dataFim: "", isPublico: true });
+    reset({ titulo: "", descricao: "", local: "eclesia", diaSemana: "0", dataInicio: "", dataFim: "", isPublico: true, escalaMinisterioIds: [] });
   };
 
   return (
@@ -201,6 +219,34 @@ function CultosRecorrentesDialog({ open, onOpenChange }: { open: boolean; onOpen
                 <Input {...register("descricao")} />
               </div>
             </div>
+            {/* Solicitar escalas — só ao criar */}
+            {!editingId && todosMinisterios.length > 0 && (
+              <div className="space-y-2 pt-1">
+                <Label className="text-sm font-medium">Solicitar escalas de ministérios (opcional)</Label>
+                <p className="text-xs text-muted-foreground">Os líderes selecionados receberão uma solicitação de escala para cada ocorrência deste culto.</p>
+                <div className="flex flex-wrap gap-2">
+                  {todosMinisterios.map(m => {
+                    const selected = (escalaMinisterioIds ?? []).includes(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => {
+                          const current = escalaMinisterioIds ?? [];
+                          setValue("escalaMinisterioIds", selected ? current.filter(id => id !== m.id) : [...current, m.id]);
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                          selected ? "bg-primary text-primary-foreground border-primary" : "border-input hover:bg-muted"
+                        }`}
+                      >
+                        {m.nome}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-between items-center pt-2">
               {editingId && <Button type="button" variant="outline" onClick={openNew}>Cancelar edição</Button>}
               <Button type="submit" disabled={saveMutation.isPending} className="ml-auto">
