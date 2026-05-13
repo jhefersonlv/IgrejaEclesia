@@ -85,6 +85,7 @@ app.use((req, res, next) => {
   });
 
   await storage.seedDefaultMinisterios();
+  await storage.migrateMembrosParaMinisterios();
   await storage.seedModulosIniciais();
   registerRoutes(app);
 

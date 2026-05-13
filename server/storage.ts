@@ -208,6 +208,7 @@ export interface IStorage {
   getUserCargos(userId: number): Promise<string[]>;
   seedModulosIniciais(): Promise<void>;
   migratePermissoes(): Promise<void>;
+  migrateMembrosParaMinisterios(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1456,6 +1457,28 @@ export class DatabaseStorage implements IStorage {
    * Cria os módulos iniciais do sistema caso ainda não existam.
    * Cada módulo recebe suas permissões padrão por cargo.
    */
+  async migrateMembrosParaMinisterios(): Promise<void> {
+    const [louvorMin] = await db.select().from(ministerios).where(eq(ministerios.tipo, "louvor")).limit(1);
+    const [obreiroMin] = await db.select().from(ministerios).where(eq(ministerios.tipo, "obreiros")).limit(1);
+
+    if (louvorMin) {
+      const louvorUsers = await db.select().from(users).where(eq(users.ministerioLouvor, true));
+      for (const u of louvorUsers) {
+        await db.insert(userMinisterios)
+          .values({ userId: u.id, ministerioId: louvorMin.id, isLider: u.isLider })
+          .onConflictDoNothing();
+      }
+    }
+    if (obreiroMin) {
+      const obreiroUsers = await db.select().from(users).where(eq(users.ministerioObreiro, true));
+      for (const u of obreiroUsers) {
+        await db.insert(userMinisterios)
+          .values({ userId: u.id, ministerioId: obreiroMin.id, isLider: false })
+          .onConflictDoNothing();
+      }
+    }
+  }
+
   async migratePermissoes(): Promise<void> {
     // Garante permissões que devem existir independente de quando o seed rodou
     const garantias: { chave: string; cargo: string }[] = [
