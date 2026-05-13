@@ -207,6 +207,7 @@ export interface IStorage {
   checkUserHasAccess(userId: number, moduloChave: string): Promise<boolean>;
   getUserCargos(userId: number): Promise<string[]>;
   seedModulosIniciais(): Promise<void>;
+  migratePermissoes(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1455,14 +1456,30 @@ export class DatabaseStorage implements IStorage {
    * Cria os módulos iniciais do sistema caso ainda não existam.
    * Cada módulo recebe suas permissões padrão por cargo.
    */
+  async migratePermissoes(): Promise<void> {
+    // Garante permissões que devem existir independente de quando o seed rodou
+    const garantias: { chave: string; cargo: string }[] = [
+      { chave: "eventos", cargo: "lider" },
+    ];
+    for (const g of garantias) {
+      const modulo = await this.getModuloByChave(g.chave);
+      if (modulo) {
+        await db.insert(permissoes).values({ moduloId: modulo.id, cargoChave: g.cargo }).onConflictDoNothing();
+      }
+    }
+  }
+
   async seedModulosIniciais(): Promise<void> {
     const existing = await db.select().from(modulos).limit(1);
-    if (existing.length > 0) return;
+    if (existing.length > 0) {
+      await this.migratePermissoes();
+      return;
+    }
 
     const modulosDefs: { chave: string; nome: string; cargos: string[] }[] = [
       { chave: "membros",    nome: "Gestão de Membros",       cargos: ["admin"] },
       { chave: "cursos",     nome: "Gestão de Cursos",         cargos: ["admin"] },
-      { chave: "eventos",    nome: "Gestão de Eventos",        cargos: ["admin"] },
+      { chave: "eventos",    nome: "Gestão de Eventos",        cargos: ["admin", "lider"] },
       { chave: "materiais",  nome: "Gestão de Materiais",      cargos: ["admin"] },
       { chave: "oracoes",    nome: "Gestão de Orações",        cargos: ["admin"] },
       { chave: "analytics",  nome: "Analytics e Relatórios",   cargos: ["admin"] },
