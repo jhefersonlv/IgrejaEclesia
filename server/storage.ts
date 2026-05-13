@@ -1,12 +1,23 @@
 import { db } from "./db";
-import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments, questions, lessonCompletions, courseEnrollments, visitors, ministerios, userMinisterios } from "@shared/schema";
-import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment, Question, InsertQuestion, LessonCompletion, InsertLessonCompletion, CourseEnrollment, Visitor, InsertVisitor, Ministerio, InsertMinisterio } from "@shared/schema";
-import { eq, and, gte, ne, sql } from "drizzle-orm";
+import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments, questions, lessonCompletions, courseEnrollments, visitors, ministerios, userMinisterios, cultosRecorrentes, scheduleRequests } from "@shared/schema";
+import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment, Question, InsertQuestion, LessonCompletion, InsertLessonCompletion, CourseEnrollment, Visitor, InsertVisitor, Ministerio, InsertMinisterio, CultoRecorrente, InsertCultoRecorrente, ScheduleRequest, InsertScheduleRequest } from "@shared/schema";
+import { eq, and, gte, ne, sql, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 // Definição da interface que será usada no retorno
 export interface ScheduleWithAssignments extends Schedule {
   assignments: (ScheduleAssignment & { user: User | null })[];
+}
+
+export interface CultoRecorrenteOcorrencia extends CultoRecorrente {
+  dataCulto: string; // data específica da ocorrência no mês
+  pendingRequests: ScheduleRequest[];
+}
+
+export interface ScheduleRequestWithDetails extends ScheduleRequest {
+  evento?: Event | null;
+  cultoRecorrente?: CultoRecorrente | null;
+  ministerio?: Ministerio | null;
 }
 
 export interface IStorage {
@@ -51,7 +62,7 @@ export interface IStorage {
   updateEvent(id: number, data: Partial<InsertEvent>): Promise<Event>;
   deleteEvent(id: number): Promise<void>;
   checkEventLocationConflict(local: string, data: string, excludeId?: number): Promise<{ hasConflict: boolean; conflictEvent?: { id: number; titulo: string; data: string } }>;
-  getAgenda(month: number, year: number, userId: number, isAdmin: boolean, ministerioIds: number[]): Promise<{ events: Event[]; schedules: ScheduleWithAssignments[] }>;
+  getAgenda(month: number, year: number, userId: number, isAdmin: boolean, ministerioIds: number[]): Promise<{ events: Event[]; schedules: ScheduleWithAssignments[]; cultosRecorrentes: CultoRecorrenteOcorrencia[] }>;
   
   // Courses
   getAllCourses(): Promise<Course[]>;
@@ -166,6 +177,21 @@ export interface IStorage {
     hasConflict: boolean;
     conflictInfo?: { scheduleId: number; tipo: string; data: string };
   }>;
+
+  // Cultos Recorrentes
+  getAllCultosRecorrentes(): Promise<CultoRecorrente[]>;
+  getCultoRecorrenteById(id: number): Promise<CultoRecorrente | null>;
+  createCultoRecorrente(data: InsertCultoRecorrente): Promise<CultoRecorrente>;
+  updateCultoRecorrente(id: number, data: Partial<InsertCultoRecorrente>): Promise<CultoRecorrente>;
+  deleteCultoRecorrente(id: number): Promise<void>;
+  getCultosOcorrenciasNoMes(month: number, year: number): Promise<CultoRecorrenteOcorrencia[]>;
+
+  // Schedule Requests
+  getPendingRequestsForMinisterios(ministerioIds: number[]): Promise<ScheduleRequestWithDetails[]>;
+  createScheduleRequest(data: InsertScheduleRequest): Promise<ScheduleRequest>;
+  fulfillScheduleRequest(id: number, scheduleId: number): Promise<ScheduleRequest>;
+  deleteScheduleRequest(id: number): Promise<void>;
+  createMultipleScheduleRequests(requests: InsertScheduleRequest[]): Promise<ScheduleRequest[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -343,14 +369,14 @@ export class DatabaseStorage implements IStorage {
     userId: number,
     isAdmin: boolean,
     ministerioIds: number[]
-  ): Promise<{ events: Event[]; schedules: ScheduleWithAssignments[] }> {
+  ): Promise<{ events: Event[]; schedules: ScheduleWithAssignments[]; cultosRecorrentes: CultoRecorrenteOcorrencia[] }> {
     // Escalas do mês
-    const schedules = await this.getSchedulesByMonth(month, year);
+    const scheduleRows = await this.getSchedulesByMonth(month, year);
 
     // Escalas filtradas por ministério (admin vê todas)
     const filteredSchedules = isAdmin
-      ? schedules
-      : schedules.filter(s => s.ministerioId && ministerioIds.includes(s.ministerioId));
+      ? scheduleRows
+      : scheduleRows.filter(s => s.ministerioId && ministerioIds.includes(s.ministerioId));
 
     // Eventos: públicos + privados do ministério do usuário + admin vê todos
     let eventRows: Event[];
@@ -368,7 +394,10 @@ export class DatabaseStorage implements IStorage {
         .orderBy(events.data);
     }
 
-    return { events: eventRows, schedules: filteredSchedules };
+    // Cultos recorrentes com ocorrências no mês
+    const cultosOcorrencias = await this.getCultosOcorrenciasNoMes(month, year);
+
+    return { events: eventRows, schedules: filteredSchedules, cultosRecorrentes: cultosOcorrencias };
   }
 
   // Courses
@@ -1018,7 +1047,7 @@ export class DatabaseStorage implements IStorage {
         return {
           id: user.id,
           nome: user.nome,
-          fotoPerfil: user.fotoPerfil || null,
+          fotoUrl: user.fotoUrl || null,
           dataNascimento: user.dataNascimento,
           dia: birthDate.getDate(),
           mes: birthDate.getMonth() + 1,
@@ -1159,6 +1188,121 @@ export class DatabaseStorage implements IStorage {
       return { hasConflict: true, conflictInfo: conflicts[0] };
     }
     return { hasConflict: false };
+  }
+
+  // Cultos Recorrentes
+  async getAllCultosRecorrentes(): Promise<CultoRecorrente[]> {
+    return await db.select().from(cultosRecorrentes).orderBy(cultosRecorrentes.diaSemana);
+  }
+
+  async getCultoRecorrenteById(id: number): Promise<CultoRecorrente | null> {
+    const result = await db.select().from(cultosRecorrentes).where(eq(cultosRecorrentes.id, id)).limit(1);
+    return result[0] || null;
+  }
+
+  async createCultoRecorrente(data: InsertCultoRecorrente): Promise<CultoRecorrente> {
+    const result = await db.insert(cultosRecorrentes).values(data).returning();
+    return result[0];
+  }
+
+  async updateCultoRecorrente(id: number, data: Partial<InsertCultoRecorrente>): Promise<CultoRecorrente> {
+    const result = await db.update(cultosRecorrentes).set(data).where(eq(cultosRecorrentes.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteCultoRecorrente(id: number): Promise<void> {
+    await db.delete(cultosRecorrentes).where(eq(cultosRecorrentes.id, id));
+  }
+
+  async getCultosOcorrenciasNoMes(month: number, year: number): Promise<CultoRecorrenteOcorrencia[]> {
+    const todos = await this.getAllCultosRecorrentes();
+    const ocorrencias: CultoRecorrenteOcorrencia[] = [];
+
+    // Busca todas as schedule_requests pendentes para cultos recorrentes
+    const pendingReqs = await db.select().from(scheduleRequests)
+      .where(and(
+        eq(scheduleRequests.status, "pendente"),
+        sql`${scheduleRequests.cultoRecorrenteId} IS NOT NULL`
+      ));
+
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    for (const culto of todos) {
+      const inicio = new Date(culto.dataInicio + "T12:00:00");
+      const fim = culto.dataFim ? new Date(culto.dataFim + "T12:00:00") : null;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month - 1, day);
+        if (date.getDay() !== culto.diaSemana) continue;
+        if (date < inicio) continue;
+        if (fim && date > fim) continue;
+
+        const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const relevantRequests = pendingReqs.filter(
+          r => r.cultoRecorrenteId === culto.id && r.dataCulto === dateStr
+        );
+
+        ocorrencias.push({
+          ...culto,
+          dataCulto: dateStr,
+          pendingRequests: relevantRequests,
+        });
+      }
+    }
+
+    return ocorrencias.sort((a, b) => a.dataCulto.localeCompare(b.dataCulto));
+  }
+
+  // Schedule Requests
+  async getPendingRequestsForMinisterios(ministerioIds: number[]): Promise<ScheduleRequestWithDetails[]> {
+    if (ministerioIds.length === 0) return [];
+
+    const rows = await db.select().from(scheduleRequests)
+      .where(and(
+        eq(scheduleRequests.status, "pendente"),
+        inArray(scheduleRequests.ministerioId, ministerioIds)
+      ))
+      .orderBy(scheduleRequests.createdAt);
+
+    const results: ScheduleRequestWithDetails[] = [];
+    for (const row of rows) {
+      const detail: ScheduleRequestWithDetails = { ...row };
+      if (row.eventoId) {
+        const ev = await db.select().from(events).where(eq(events.id, row.eventoId)).limit(1);
+        detail.evento = ev[0] || null;
+      }
+      if (row.cultoRecorrenteId) {
+        const culto = await db.select().from(cultosRecorrentes).where(eq(cultosRecorrentes.id, row.cultoRecorrenteId)).limit(1);
+        detail.cultoRecorrente = culto[0] || null;
+      }
+      const min = await db.select().from(ministerios).where(eq(ministerios.id, row.ministerioId)).limit(1);
+      detail.ministerio = min[0] || null;
+      results.push(detail);
+    }
+    return results;
+  }
+
+  async createScheduleRequest(data: InsertScheduleRequest): Promise<ScheduleRequest> {
+    const result = await db.insert(scheduleRequests).values(data).returning();
+    return result[0];
+  }
+
+  async fulfillScheduleRequest(id: number, scheduleId: number): Promise<ScheduleRequest> {
+    const result = await db.update(scheduleRequests)
+      .set({ status: "cumprida", scheduleId })
+      .where(eq(scheduleRequests.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteScheduleRequest(id: number): Promise<void> {
+    await db.delete(scheduleRequests).where(eq(scheduleRequests.id, id));
+  }
+
+  async createMultipleScheduleRequests(requests: InsertScheduleRequest[]): Promise<ScheduleRequest[]> {
+    if (requests.length === 0) return [];
+    const result = await db.insert(scheduleRequests).values(requests).returning();
+    return result;
   }
 }
 

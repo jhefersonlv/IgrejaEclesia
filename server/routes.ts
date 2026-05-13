@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
-import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema, insertQuestionSchema, insertVisitorSchema, insertMinisterioSchema, scheduleAssignments } from "@shared/schema";
+import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema, insertQuestionSchema, insertVisitorSchema, insertMinisterioSchema, scheduleAssignments, insertCultoRecorrenteSchema, insertScheduleRequestSchema } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
@@ -677,7 +677,12 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
         return res.status(403).json({ message: "Você não é líder deste ministério." });
       }
       const newSchedule = await storage.createSchedule(scheduleData);
-      res.status(201).json(newSchedule);
+      // Se houver scheduleRequestId, marca a solicitação como cumprida
+      const scheduleRequestId = req.body.scheduleRequestId;
+      if (scheduleRequestId) {
+        await storage.fulfillScheduleRequest(scheduleRequestId, newSchedule.id);
+      }
+      res.status(201).json(newSchedule);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
@@ -1165,4 +1170,116 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
       res.status(500).json({ message: "Erro ao desvincular ministério" });
     }
   });
+  // ── Cultos Recorrentes ───────────────────────────────────────────────────────
+
+  app.get("/api/cultos-recorrentes", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const lista = await storage.getAllCultosRecorrentes();
+      res.json(lista);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar cultos recorrentes" });
+    }
+  });
+
+  app.post("/api/admin/cultos-recorrentes", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const data = insertCultoRecorrenteSchema.parse(req.body);
+      const { ministerioIds, ...cultoData } = req.body;
+      const novo = await storage.createCultoRecorrente(data);
+      // Cria schedule_requests para os ministérios selecionados (se fornecidos)
+      if (Array.isArray(ministerioIds) && ministerioIds.length > 0) {
+        const requests = ministerioIds.map((mid: number) => ({
+          cultoRecorrenteId: novo.id,
+          ministerioId: mid,
+        }));
+        await storage.createMultipleScheduleRequests(requests);
+      }
+      res.status(201).json(novo);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      res.status(500).json({ message: "Erro ao criar culto recorrente" });
+    }
+  });
+
+  app.patch("/api/admin/cultos-recorrentes/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const data = insertCultoRecorrenteSchema.partial().parse(req.body);
+      const updated = await storage.updateCultoRecorrente(id, data);
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      res.status(500).json({ message: "Erro ao atualizar culto recorrente" });
+    }
+  });
+
+  app.delete("/api/admin/cultos-recorrentes/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteCultoRecorrente(id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao deletar culto recorrente" });
+    }
+  });
+
+  // ── Schedule Requests ─────────────────────────────────────────────────────────
+
+  app.get("/api/schedule-requests/pendentes", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      let ministerioIds: number[] = [];
+      if (user.isAdmin) {
+        const todos = await storage.getAllMinisterios();
+        ministerioIds = todos.map(m => m.id);
+      } else {
+        const liderancas = await storage.getUserLeaderMinisterios(user.id);
+        ministerioIds = liderancas.map(m => m.id);
+      }
+      const pendentes = await storage.getPendingRequestsForMinisterios(ministerioIds);
+      res.json(pendentes);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar solicitações pendentes" });
+    }
+  });
+
+  app.post("/api/admin/schedule-requests", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const data = insertScheduleRequestSchema.parse(req.body);
+      const novo = await storage.createScheduleRequest(data);
+      res.status(201).json(novo);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      res.status(500).json({ message: "Erro ao criar solicitação" });
+    }
+  });
+
+  app.patch("/api/schedule-requests/:id/fulfill", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { scheduleId } = req.body;
+      if (!scheduleId) return res.status(400).json({ message: "scheduleId é obrigatório" });
+      const updated = await storage.fulfillScheduleRequest(id, scheduleId);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao cumprir solicitação" });
+    }
+  });
+
+  app.delete("/api/admin/schedule-requests/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteScheduleRequest(id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao deletar solicitação" });
+    }
+  });
+
 }

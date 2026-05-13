@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Calendar, Plus, Trash2, MapPin, Pencil, Globe, Lock, Building2, Upload } from "lucide-react";
+import { Calendar, Plus, Trash2, MapPin, Pencil, Globe, Lock, Building2, Upload, AlertCircle } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Event } from "@shared/schema";
 import { LOCAIS_LABELS } from "@shared/schema";
@@ -26,6 +26,7 @@ interface EventFormData {
   local: "eclesia" | "missoes-vidas" | "externo";
   ministerioId: number | null;
   isPublico: boolean;
+  escalaMinisterioIds: number[];
 }
 
 export default function AdminEvents() {
@@ -39,12 +40,13 @@ export default function AdminEvents() {
   const { data: ministerios = [] } = useQuery<Ministerio[]>({ queryKey: ["/api/ministerios"] });
 
   const defaultValues: EventFormData = {
-    titulo: "", descricao: "", data: "", local: "eclesia", ministerioId: null, isPublico: true,
+    titulo: "", descricao: "", data: "", local: "eclesia", ministerioId: null, isPublico: true, escalaMinisterioIds: [],
   };
 
   const { register, handleSubmit, control, watch, reset, setValue, formState: { errors } } = useForm<EventFormData>({ defaultValues });
   const isPublico = watch("isPublico");
   const ministerioId = watch("ministerioId");
+  const escalaMinisterioIds = watch("escalaMinisterioIds");
 
   const openCreate = () => {
     reset(defaultValues);
@@ -62,6 +64,7 @@ export default function AdminEvents() {
       local: ev.local as any,
       ministerioId: ev.ministerioId ?? null,
       isPublico: ev.isPublico,
+      escalaMinisterioIds: [],
     });
     setImagePreview(ev.imagem ?? null);
     setImageFile(null);
@@ -85,15 +88,27 @@ export default function AdminEvents() {
         const result = await apiUpload<{ url: string }>("/api/upload", formData);
         imagemUrl = result.url;
       }
-      const payload = { ...data, imagem: imagemUrl ?? undefined, ministerioId: data.ministerioId ?? undefined };
+      const { escalaMinisterioIds, ...rest } = data;
+      const payload = { ...rest, imagem: imagemUrl ?? undefined, ministerioId: data.ministerioId ?? undefined };
+      let savedEvent: Event;
       if (editingEvent) {
-        return apiRequest("PATCH", `/api/admin/events/${editingEvent.id}`, payload);
+        savedEvent = await apiRequest<Event>("PATCH", `/api/admin/events/${editingEvent.id}`, payload);
+      } else {
+        savedEvent = await apiRequest<Event>("POST", "/api/admin/events", payload);
+        // Cria solicitações de escala para os ministérios selecionados
+        for (const mid of (escalaMinisterioIds ?? [])) {
+          await apiRequest("POST", "/api/admin/schedule-requests", {
+            eventoId: savedEvent.id,
+            ministerioId: mid,
+          });
+        }
       }
-      return apiRequest("POST", "/api/admin/events", payload);
+      return savedEvent;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/events"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/schedule-requests/pendentes"] });
       toast({ title: editingEvent ? "Evento atualizado!" : "Evento criado!" });
       setIsCreateOpen(false);
       reset(defaultValues);
@@ -221,6 +236,39 @@ export default function AdminEvents() {
           </p>
         </div>
       </div>
+
+      {/* Solicitações de escala - só para criação */}
+      {!editingEvent && ministerios.length > 0 && (
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-orange-500" />
+            Solicitar escalas (opcional)
+          </Label>
+          <p className="text-xs text-muted-foreground">Selecione os ministérios que precisarão de escala para este evento.</p>
+          <div className="flex flex-wrap gap-2">
+            {ministerios.map(m => {
+              const selected = (escalaMinisterioIds ?? []).includes(m.id);
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => {
+                    const current = escalaMinisterioIds ?? [];
+                    setValue("escalaMinisterioIds", selected ? current.filter(id => id !== m.id) : [...current, m.id]);
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                    selected
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-input hover:bg-muted"
+                  }`}
+                >
+                  {m.nome}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>Cancelar</Button>

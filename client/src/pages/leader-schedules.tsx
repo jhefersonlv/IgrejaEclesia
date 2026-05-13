@@ -10,13 +10,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, Trash2, Save, Pencil, Music, Users as UsersIcon, ChevronRight, X, Music2, Archive, Building2 } from "lucide-react";
+import { Plus, Calendar, Trash2, Save, Pencil, Music, Users as UsersIcon, ChevronRight, X, Music2, Archive, Building2, AlertCircle, RepeatIcon } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format, addDays, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+interface ScheduleRequestWithDetails {
+  id: number;
+  eventoId: number | null;
+  cultoRecorrenteId: number | null;
+  dataCulto: string | null;
+  ministerioId: number;
+  status: string;
+  scheduleId: number | null;
+  createdAt: string;
+  evento?: { id: number; titulo: string; data: string } | null;
+  cultoRecorrente?: { id: number; titulo: string; diaSemana: number } | null;
+  ministerio?: { id: number; nome: string } | null;
+}
 
 interface Ministerio {
   id: number;
@@ -68,6 +82,7 @@ export default function LeaderSchedulesPage() {
   const [activeTab, setActiveTab] = useState<TabType>("proximas");
   const [viewAll, setViewAll] = useState(false);
   const [selectedMinisterioId, setSelectedMinisterioId] = useState<number | null>(null);
+  const [prefillRequestId, setPrefillRequestId] = useState<number | null>(null);
 
   const currentDate = new Date();
   currentDate.setHours(0, 0, 0, 0);
@@ -82,6 +97,11 @@ export default function LeaderSchedulesPage() {
   // Ministérios que o usuário lidera
   const { data: meusMinisterios = [] } = useQuery<Ministerio[]>({
     queryKey: ["/api/ministerios/meus-liderancas"],
+  });
+
+  // Solicitações de escala pendentes
+  const { data: pendingRequests = [] } = useQuery<ScheduleRequestWithDetails[]>({
+    queryKey: ["/api/schedule-requests/pendentes"],
   });
 
   // Auto-seleciona o primeiro ministério quando carrega
@@ -175,7 +195,8 @@ export default function LeaderSchedulesPage() {
 
   const createScheduleMutation = useMutation({
     mutationFn: async (data: ScheduleFormData) => {
-      const scheduleData = { ...data, louvores: louvores.length > 0 ? JSON.stringify(louvores) : null };
+      const scheduleData: Record<string, any> = { ...data, louvores: louvores.length > 0 ? JSON.stringify(louvores) : null };
+      if (prefillRequestId) scheduleData.scheduleRequestId = prefillRequestId;
       const schedule = await apiRequest<Schedule>("POST", "/api/schedules", scheduleData);
       const ministerio = meusMinisterios.find(m => m.id === data.ministerioId);
       const posicoes = getPosicoesByTipo(ministerio?.tipo ?? "outro");
@@ -189,7 +210,8 @@ export default function LeaderSchedulesPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["schedules", "all"] });
-      setIsDialogOpen(false); setAssignments({}); setLouvores([]); form.reset();
+      await queryClient.invalidateQueries({ queryKey: ["/api/schedule-requests/pendentes"] });
+      setIsDialogOpen(false); setAssignments({}); setLouvores([]); form.reset(); setPrefillRequestId(null);
       toast({ title: "Escala criada!" });
     },
     onError: (error: any) => toast({ title: "Erro ao criar escala", description: error.message, variant: "destructive" }),
@@ -215,7 +237,8 @@ export default function LeaderSchedulesPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["schedules", "all"] });
-      setIsDialogOpen(false); setEditingSchedule(null); setAssignments({}); setLouvores([]); form.reset();
+      await queryClient.invalidateQueries({ queryKey: ["/api/schedule-requests/pendentes"] });
+      setIsDialogOpen(false); setEditingSchedule(null); setAssignments({}); setLouvores([]); form.reset(); setPrefillRequestId(null);
       toast({ title: "Escala atualizada!" });
     },
     onError: (error: any) => toast({ title: "Erro ao atualizar escala", description: error.message, variant: "destructive" }),
@@ -371,6 +394,66 @@ export default function LeaderSchedulesPage() {
         </div>
       )}
 
+      {/* Escalas Solicitadas */}
+      {pendingRequests.filter(r => !selectedMinisterioId || r.ministerioId === selectedMinisterioId).length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+            <h3 className="font-semibold text-lg">Escalas Solicitadas</h3>
+            <Badge variant="destructive">{pendingRequests.filter(r => !selectedMinisterioId || r.ministerioId === selectedMinisterioId).length}</Badge>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {pendingRequests.filter(r => !selectedMinisterioId || r.ministerioId === selectedMinisterioId).map(req => {
+              const nome = req.evento?.titulo ?? req.cultoRecorrente?.titulo ?? "Culto";
+              const data = req.dataCulto ?? req.evento?.data ?? null;
+              return (
+                <Card key={req.id} className="border-l-4 border-l-red-500">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <RepeatIcon className="w-4 h-4 text-red-500" />
+                      {nome}
+                    </CardTitle>
+                    <CardDescription>
+                      <div className="flex items-center gap-1">
+                        <Building2 className="w-3 h-3" />
+                        {req.ministerio?.nome}
+                      </div>
+                      {data && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <Calendar className="w-3 h-3" />
+                          {format(new Date(data + "T12:00:00"), "dd 'de' MMMM yyyy", { locale: ptBR })}
+                        </div>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        setPrefillRequestId(req.id);
+                        setEditingSchedule(null);
+                        form.reset({
+                          ministerioId: req.ministerioId,
+                          data: data ?? "",
+                          observacoes: "",
+                        });
+                        setAssignments({});
+                        setLouvores([]);
+                        setSelectedMinisterioId(req.ministerioId);
+                        setIsDialogOpen(true);
+                      }}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />Criar Escala
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Abas */}
       <div className="flex gap-2 items-center flex-wrap">
         {[
@@ -399,7 +482,7 @@ export default function LeaderSchedulesPage() {
       {isLoading ? <p>Carregando...</p> : renderScheduleCards(activeSchedules, viewAll ? 999 : 3)}
 
       {/* Dialog criar/editar */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={(v) => { setIsDialogOpen(v); if (!v) setPrefillRequestId(null); }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingSchedule ? "Editar Escala" : "Criar Nova Escala"}</DialogTitle>

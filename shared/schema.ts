@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, boolean, date, integer, timestamp, primaryKey, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, boolean, date, integer, timestamp, primaryKey, unique, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -177,6 +177,31 @@ export const visitors = pgTable("visitors", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Cultos Recorrentes table
+export const cultosRecorrentes = pgTable("cultos_recorrentes", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  titulo: text("titulo").notNull(),
+  descricao: text("descricao"),
+  local: text("local").notNull(), // "eclesia" | "missoes-vidas" | "externo"
+  diaSemana: integer("dia_semana").notNull(), // 0=domingo, 1=segunda...6=sábado
+  dataInicio: date("data_inicio").notNull(),
+  dataFim: date("data_fim"),
+  isPublico: boolean("is_publico").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Schedule Requests table
+export const scheduleRequests = pgTable("schedule_requests", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  eventoId: integer("evento_id").references(() => events.id, { onDelete: "cascade" }),
+  cultoRecorrenteId: integer("culto_recorrente_id").references(() => cultosRecorrentes.id, { onDelete: "cascade" }),
+  dataCulto: date("data_culto"),
+  ministerioId: integer("ministerio_id").notNull().references(() => ministerios.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("pendente"), // 'pendente' | 'cumprida'
+  scheduleId: integer("schedule_id").references(() => schedules.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   enrollments: many(courseEnrollments),
@@ -330,6 +355,23 @@ export const insertVisitorSchema = z.object({
   membrouSe: z.boolean(),
 });
 
+export const insertCultoRecorrenteSchema = z.object({
+  titulo: z.string().min(1, "Título obrigatório"),
+  descricao: z.string().optional().nullable(),
+  local: z.enum(LOCAIS_EVENTO, { required_error: "Selecione o local" }),
+  diaSemana: z.number().int().min(0).max(6),
+  dataInicio: z.string().min(1, "Data de início obrigatória"),
+  dataFim: z.string().optional().nullable(),
+  isPublico: z.boolean().optional().default(true),
+});
+
+export const insertScheduleRequestSchema = z.object({
+  eventoId: z.number().optional().nullable(),
+  cultoRecorrenteId: z.number().optional().nullable(),
+  dataCulto: z.string().optional().nullable(),
+  ministerioId: z.number({ required_error: "Ministério obrigatório" }),
+});
+
 // Login schema
 export const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -373,3 +415,7 @@ export type InsertVisitor = z.infer<typeof insertVisitorSchema>;
 export type LoginCredentials = z.infer<typeof loginSchema>;
 export type Ministerio = typeof ministerios.$inferSelect;
 export type InsertMinisterio = z.infer<typeof insertMinisterioSchema>;
+export type CultoRecorrente = typeof cultosRecorrentes.$inferSelect;
+export type InsertCultoRecorrente = z.infer<typeof insertCultoRecorrenteSchema>;
+export type ScheduleRequest = typeof scheduleRequests.$inferSelect;
+export type InsertScheduleRequest = z.infer<typeof insertScheduleRequestSchema>;
