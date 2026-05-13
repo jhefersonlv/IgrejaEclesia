@@ -22,6 +22,27 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Módulos do sistema (features controladas por permissão)
+export const modulos = pgTable("modulos", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  chave: text("chave").notNull().unique(),       // ex: "visitantes", "escalas"
+  nome: text("nome").notNull(),                   // label amigável
+  descricao: text("descricao"),
+  ativo: boolean("ativo").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Permissões: quais cargos acessam qual módulo
+export const permissoes = pgTable("permissoes", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  moduloId: integer("modulo_id").notNull().references(() => modulos.id, { onDelete: "cascade" }),
+  // Cargo como string: "admin" | "lider" | "membro" | "ministerio:NOME"
+  cargoChave: text("cargo_chave").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  uniq: unique().on(table.moduloId, table.cargoChave),
+}));
+
 // Ministerios table
 export const ministerios = pgTable("ministerios", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -378,6 +399,18 @@ export const loginSchema = z.object({
   senha: z.string().min(1, "Senha é obrigatória"),
 });
 
+export const insertModuloSchema = z.object({
+  chave: z.string().min(1).regex(/^[a-z0-9-_:]+$/, "Use apenas letras minúsculas, números, hífens e underscores"),
+  nome: z.string().min(1),
+  descricao: z.string().optional(),
+  ativo: z.boolean().optional(),
+});
+
+export const insertPermissaoSchema = z.object({
+  moduloId: z.number(),
+  cargoChave: z.string().min(1),
+});
+
 export const insertMinisterioSchema = z.object({
   nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
   descricao: z.string().optional(),
@@ -413,6 +446,10 @@ export type InsertLessonCompletion = z.infer<typeof insertLessonCompletionSchema
 export type Visitor = typeof visitors.$inferSelect;
 export type InsertVisitor = z.infer<typeof insertVisitorSchema>;
 export type LoginCredentials = z.infer<typeof loginSchema>;
+export type Modulo = typeof modulos.$inferSelect;
+export type InsertModulo = z.infer<typeof insertModuloSchema>;
+export type Permissao = typeof permissoes.$inferSelect;
+export type InsertPermissao = z.infer<typeof insertPermissaoSchema>;
 export type Ministerio = typeof ministerios.$inferSelect;
 export type InsertMinisterio = z.infer<typeof insertMinisterioSchema>;
 export type CultoRecorrente = typeof cultosRecorrentes.$inferSelect;

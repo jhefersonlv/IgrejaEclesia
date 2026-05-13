@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments, questions, lessonCompletions, courseEnrollments, visitors, ministerios, userMinisterios, cultosRecorrentes, scheduleRequests } from "@shared/schema";
-import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment, Question, InsertQuestion, LessonCompletion, InsertLessonCompletion, CourseEnrollment, Visitor, InsertVisitor, Ministerio, InsertMinisterio, CultoRecorrente, InsertCultoRecorrente, ScheduleRequest, InsertScheduleRequest } from "@shared/schema";
+import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments, questions, lessonCompletions, courseEnrollments, visitors, ministerios, userMinisterios, cultosRecorrentes, scheduleRequests, modulos, permissoes } from "@shared/schema";
+import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment, Question, InsertQuestion, LessonCompletion, InsertLessonCompletion, CourseEnrollment, Visitor, InsertVisitor, Ministerio, InsertMinisterio, CultoRecorrente, InsertCultoRecorrente, ScheduleRequest, InsertScheduleRequest, Modulo, InsertModulo, Permissao } from "@shared/schema";
 import { eq, and, gte, ne, sql, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
@@ -192,6 +192,18 @@ export interface IStorage {
   fulfillScheduleRequest(id: number, scheduleId: number): Promise<ScheduleRequest>;
   deleteScheduleRequest(id: number): Promise<void>;
   createMultipleScheduleRequests(requests: InsertScheduleRequest[]): Promise<ScheduleRequest[]>;
+
+  // Módulos e Permissões
+  getAllModulos(): Promise<Modulo[]>;
+  getModuloByChave(chave: string): Promise<Modulo | null>;
+  createModulo(data: InsertModulo): Promise<Modulo>;
+  updateModulo(id: number, data: Partial<InsertModulo>): Promise<Modulo>;
+  deleteModulo(id: number): Promise<void>;
+  getPermissoesByModulo(moduloId: number): Promise<Permissao[]>;
+  addPermissao(moduloId: number, cargoChave: string): Promise<Permissao>;
+  removePermissao(moduloId: number, cargoChave: string): Promise<void>;
+  checkUserHasAccess(userId: number, moduloChave: string): Promise<boolean>;
+  getUserCargos(userId: number): Promise<string[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1303,6 +1315,102 @@ export class DatabaseStorage implements IStorage {
     if (requests.length === 0) return [];
     const result = await db.insert(scheduleRequests).values(requests).returning();
     return result;
+  }
+
+  // ── Módulos e Permissões ────────────────────────────────────────────────────
+
+  async getAllModulos(): Promise<Modulo[]> {
+    return await db.select().from(modulos).orderBy(modulos.nome);
+  }
+
+  async getModuloByChave(chave: string): Promise<Modulo | null> {
+    const r = await db.select().from(modulos).where(eq(modulos.chave, chave)).limit(1);
+    return r[0] || null;
+  }
+
+  async createModulo(data: InsertModulo): Promise<Modulo> {
+    const r = await db.insert(modulos).values(data).returning();
+    return r[0];
+  }
+
+  async updateModulo(id: number, data: Partial<InsertModulo>): Promise<Modulo> {
+    const r = await db.update(modulos).set(data).where(eq(modulos.id, id)).returning();
+    return r[0];
+  }
+
+  async deleteModulo(id: number): Promise<void> {
+    await db.delete(modulos).where(eq(modulos.id, id));
+  }
+
+  async getPermissoesByModulo(moduloId: number): Promise<Permissao[]> {
+    return await db.select().from(permissoes).where(eq(permissoes.moduloId, moduloId));
+  }
+
+  async addPermissao(moduloId: number, cargoChave: string): Promise<Permissao> {
+    const r = await db.insert(permissoes).values({ moduloId, cargoChave }).onConflictDoNothing().returning();
+    if (r.length === 0) {
+      const existing = await db.select().from(permissoes)
+        .where(and(eq(permissoes.moduloId, moduloId), eq(permissoes.cargoChave, cargoChave))).limit(1);
+      return existing[0];
+    }
+    return r[0];
+  }
+
+  async removePermissao(moduloId: number, cargoChave: string): Promise<void> {
+    await db.delete(permissoes).where(
+      and(eq(permissoes.moduloId, moduloId), eq(permissoes.cargoChave, cargoChave))
+    );
+  }
+
+  /**
+   * Retorna os cargos efetivos do usuário:
+   * - "admin" se isAdmin
+   * - "lider" se é líder de qualquer ministério
+   * - "membro" sempre (usuário autenticado)
+   * - "ministerio:NOME" para cada ministério do qual o usuário faz parte
+   */
+  async getUserCargos(userId: number): Promise<string[]> {
+    const cargos: string[] = ["membro"];
+
+    const user = await this.getUserById(userId);
+    if (!user) return cargos;
+
+    if (user.isAdmin) cargos.push("admin");
+
+    const userMins = await db
+      .select({ isLider: userMinisterios.isLider, nome: ministerios.nome })
+      .from(userMinisterios)
+      .innerJoin(ministerios, eq(userMinisterios.ministerioId, ministerios.id))
+      .where(eq(userMinisterios.userId, userId));
+
+    let isAnyLider = false;
+    for (const m of userMins) {
+      cargos.push(`ministerio:${m.nome}`);
+      if (m.isLider) isAnyLider = true;
+    }
+    if (isAnyLider || user.isLider) cargos.push("lider");
+
+    return cargos;
+  }
+
+  /**
+   * Verifica se o usuário tem acesso ao módulo consultando as permissões no banco.
+   * Admin sempre tem acesso.
+   */
+  async checkUserHasAccess(userId: number, moduloChave: string): Promise<boolean> {
+    const user = await this.getUserById(userId);
+    if (!user) return false;
+    if (user.isAdmin) return true;
+
+    const modulo = await this.getModuloByChave(moduloChave);
+    if (!modulo || !modulo.ativo) return false;
+
+    const perms = await this.getPermissoesByModulo(modulo.id);
+    if (perms.length === 0) return false;
+
+    const userCargos = await this.getUserCargos(userId);
+
+    return perms.some(p => userCargos.includes(p.cargoChave));
   }
 }
 

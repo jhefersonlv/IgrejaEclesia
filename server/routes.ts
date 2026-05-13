@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
-import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema, insertQuestionSchema, insertVisitorSchema, insertMinisterioSchema, scheduleAssignments, insertCultoRecorrenteSchema, insertScheduleRequestSchema } from "@shared/schema";
+import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema, insertQuestionSchema, insertVisitorSchema, insertMinisterioSchema, scheduleAssignments, insertCultoRecorrenteSchema, insertScheduleRequestSchema, insertModuloSchema, insertPermissaoSchema } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
@@ -1282,4 +1282,84 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
+
+  // ── Módulos e Permissões ────────────────────────────────────────────────────
+
+  // Middleware reutilizável: requer acesso ao módulo
+  app.locals.requireModulo = function requireModulo(moduloChave: string) {
+    return async (req: Request, res: Response, next: NextFunction) => {
+      const user = (req as any).user;
+      if (!user) return res.status(401).json({ message: "Não autenticado" });
+      const ok = await storage.checkUserHasAccess(user.id, moduloChave);
+      if (!ok) return res.status(403).json({ message: `Acesso ao módulo "${moduloChave}" negado.` });
+      next();
+    };
+  };
+
+  app.get("/api/admin/modulos", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const lista = await storage.getAllModulos();
+      // Para cada módulo, retorna também as permissões
+      const result = await Promise.all(lista.map(async m => ({
+        ...m,
+        permissoes: await storage.getPermissoesByModulo(m.id),
+      })));
+      res.json(result);
+    } catch { res.status(500).json({ message: "Erro ao buscar módulos" }); }
+  });
+
+  app.post("/api/admin/modulos", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const data = insertModuloSchema.parse(req.body);
+      const novo = await storage.createModulo(data);
+      res.status(201).json(novo);
+    } catch (e) {
+      if (e instanceof z.ZodError) return res.status(400).json({ message: "Dados inválidos", errors: e.errors });
+      res.status(500).json({ message: "Erro ao criar módulo" });
+    }
+  });
+
+  app.patch("/api/admin/modulos/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const data = insertModuloSchema.partial().parse(req.body);
+      const updated = await storage.updateModulo(id, data);
+      res.json(updated);
+    } catch { res.status(500).json({ message: "Erro ao atualizar módulo" }); }
+  });
+
+  app.delete("/api/admin/modulos/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      await storage.deleteModulo(parseInt(req.params.id));
+      res.status(204).send();
+    } catch { res.status(500).json({ message: "Erro ao deletar módulo" }); }
+  });
+
+  app.post("/api/admin/modulos/:id/permissoes", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const moduloId = parseInt(req.params.id);
+      const { cargoChave } = req.body;
+      if (!cargoChave) return res.status(400).json({ message: "cargoChave obrigatório" });
+      const perm = await storage.addPermissao(moduloId, cargoChave);
+      res.status(201).json(perm);
+    } catch { res.status(500).json({ message: "Erro ao adicionar permissão" }); }
+  });
+
+  app.delete("/api/admin/modulos/:id/permissoes/:cargo", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const moduloId = parseInt(req.params.id);
+      const cargoChave = decodeURIComponent(req.params.cargo);
+      await storage.removePermissao(moduloId, cargoChave);
+      res.status(204).send();
+    } catch { res.status(500).json({ message: "Erro ao remover permissão" }); }
+  });
+
+  // Rota de verificação: retorna os cargos do usuário atual
+  app.get("/api/meus-cargos", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const cargos = await storage.getUserCargos(userId);
+      res.json({ cargos });
+    } catch { res.status(500).json({ message: "Erro" }); }
+  });
 }

@@ -29,6 +29,7 @@ import AdminAnalytics from "@/pages/admin-analytics";
 import AdminVisitors from "@/pages/admin-visitors";
 import MemberVisitors from "@/pages/member-visitors";
 import Agenda from "@/pages/agenda";
+import AdminPermissions from "@/pages/admin-permissions";
 
 function Router() {
   return (
@@ -148,6 +149,11 @@ function Router() {
       <Route path="/admin/visitors">
         <AdminLayout>
           <AdminVisitors />
+        </AdminLayout>
+      </Route>
+      <Route path="/admin/permissions">
+        <AdminLayout>
+          <AdminPermissions />
         </AdminLayout>
       </Route>
       
