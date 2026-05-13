@@ -65,10 +65,16 @@ const scheduleFormSchema = z.object({
 type ScheduleFormData = z.infer<typeof scheduleFormSchema>;
 type TabType = "proximas" | "atuais" | "anteriores";
 
-function getPosicoesByTipo(tipo: string): string[] {
-  if (tipo === "louvor") return POSICOES_LOUVOR;
-  if (tipo === "obreiros") return Array.from({ length: 4 }, (_, i) => `obreiro-${i}`);
-  return ["responsavel"];
+function getPosicoesPadrao(ministerio: Ministerio | null): string[] {
+  if (!ministerio) return [];
+  try {
+    const saved = ministerio.posicoes ? JSON.parse(ministerio.posicoes) : null;
+    if (Array.isArray(saved) && saved.length > 0) return saved;
+  } catch {}
+  // Fallback para tipo
+  if (ministerio.tipo === "louvor") return POSICOES_LOUVOR.map(p => POSICOES_LABELS[p] ?? p);
+  if (ministerio.tipo === "obreiros") return ["Obreiro 1", "Obreiro 2", "Obreiro 3", "Obreiro 4"];
+  return [];
 }
 
 export default function LeaderSchedulesPage() {
@@ -76,6 +82,8 @@ export default function LeaderSchedulesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<ScheduleWithAssignments | null>(null);
   const [assignments, setAssignments] = useState<Record<string, number | null>>({});
+  const [posicoes, setPosicoes] = useState<string[]>([]); // posições dinâmicas da escala
+  const [novaPosicao, setNovaPosicao] = useState("");
   const [louvores, setLouvores] = useState<Louvor[]>([]);
   const [novoLouvorNome, setNovoLouvorNome] = useState("");
   const [novoLouvorTom, setNovoLouvorTom] = useState("C");
@@ -171,6 +179,9 @@ export default function LeaderSchedulesPage() {
         data: editingSchedule.data.split('T')[0],
         observacoes: editingSchedule.observacoes ?? "",
       });
+      // Ao editar: usa as posições das atribuições existentes (preserva o que foi criado)
+      const existingPosicoes = [...new Set(editingSchedule.assignments.map(a => a.posicao))];
+      setPosicoes(existingPosicoes.length > 0 ? existingPosicoes : getPosicoesPadrao(selectedMinisterio));
       const initial = editingSchedule.assignments.reduce((acc, a) => {
         acc[a.posicao] = a.userId;
         return acc;
@@ -182,10 +193,12 @@ export default function LeaderSchedulesPage() {
       } catch { setLouvores([]); }
     } else {
       form.reset({ ministerioId: selectedMinisterioId ?? undefined as any, data: "", observacoes: "" });
+      // Ao criar: usa posições padrão do ministério selecionado
+      setPosicoes(getPosicoesPadrao(selectedMinisterio));
       setAssignments({});
       setLouvores([]);
     }
-  }, [editingSchedule, selectedMinisterioId]);
+  }, [editingSchedule, selectedMinisterioId, selectedMinisterio]);
 
   const adicionarLouvor = () => {
     if (!novoLouvorNome.trim()) return toast({ title: "Nome obrigatório", variant: "destructive" });
@@ -198,8 +211,6 @@ export default function LeaderSchedulesPage() {
       const scheduleData: Record<string, any> = { ...data, louvores: louvores.length > 0 ? JSON.stringify(louvores) : null };
       if (prefillRequestId) scheduleData.scheduleRequestId = prefillRequestId;
       const schedule = await apiRequest<Schedule>("POST", "/api/schedules", scheduleData);
-      const ministerio = meusMinisterios.find(m => m.id === data.ministerioId);
-      const posicoes = getPosicoesByTipo(ministerio?.tipo ?? "outro");
       for (const posicao of posicoes) {
         const userId = assignments[posicao];
         const body: Record<string, any> = { scheduleId: schedule.id, posicao };
@@ -222,8 +233,6 @@ export default function LeaderSchedulesPage() {
       if (!editingSchedule) return;
       const scheduleData = { ...data, louvores: louvores.length > 0 ? JSON.stringify(louvores) : null };
       const schedule = await apiRequest<Schedule>("PATCH", `/api/schedules/${editingSchedule.id}`, scheduleData);
-      const ministerio = meusMinisterios.find(m => m.id === data.ministerioId);
-      const posicoes = getPosicoesByTipo(ministerio?.tipo ?? editingSchedule.tipo ?? "outro");
       for (const posicao of posicoes) {
         const existing = editingSchedule.assignments.find(a => a.posicao === posicao);
         const newUserId = assignments[posicao];
@@ -519,33 +528,76 @@ export default function LeaderSchedulesPage() {
             </div>
 
             {formMinisterio && (
-              <div className="space-y-4">
-                <h3 className="font-semibold">Atribuir Membros</h3>
-                {getPosicoesByTipo(formMinisterio.tipo).map((posicao, index) => (
-                  <div key={posicao} className="grid grid-cols-2 items-center gap-2">
-                    <Label>
-                      {formMinisterio.tipo === "louvor"
-                        ? (POSICOES_LABELS[posicao] || posicao)
-                        : formMinisterio.tipo === "obreiros"
-                          ? `Obreiro ${index + 1}`
-                          : `Responsável ${index + 1}`}
-                    </Label>
-                    <Select
-                      value={assignments[posicao]?.toString() ?? "null"}
-                      onValueChange={v => setAssignments(prev => ({ ...prev, [posicao]: v === "null" ? null : Number(v) }))}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Responsáveis / Posições</h3>
+                  <span className="text-xs text-muted-foreground">{posicoes.length} posição(ões)</span>
+                </div>
+
+                {posicoes.length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">
+                    Nenhuma posição definida. Adicione abaixo ou configure posições padrão no ministério.
+                  </p>
+                )}
+
+                {posicoes.map((posicao, index) => (
+                  <div key={`${posicao}-${index}`} className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
+                    <div className="grid grid-cols-[140px_1fr] items-center gap-2">
+                      <span className="text-sm font-medium truncate" title={posicao}>{posicao}</span>
+                      <Select
+                        value={assignments[posicao]?.toString() ?? "null"}
+                        onValueChange={v => setAssignments(prev => ({ ...prev, [posicao]: v === "null" ? null : Number(v) }))}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Membro..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="null">— Vazio —</SelectItem>
+                          {membrosMinisterio.map(user => (
+                            <SelectItem key={user.id} value={user.id.toString()}>{user.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const novas = posicoes.filter((_, i) => i !== index);
+                        setPosicoes(novas);
+                        setAssignments(prev => { const n = { ...prev }; delete n[posicao]; return n; });
+                      }}
+                      className="text-muted-foreground hover:text-destructive p-1"
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um membro" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="null">Vazio</SelectItem>
-                        {membrosMinisterio.map(user => (
-                          <SelectItem key={user.id} value={user.id.toString()}>{user.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 ))}
+
+                {/* Adicionar nova posição */}
+                <div className="flex gap-2 pt-1 border-t">
+                  <Input
+                    placeholder="Adicionar posição... (ex: Guitarra, Professora)"
+                    value={novaPosicao}
+                    onChange={e => setNovaPosicao(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && novaPosicao.trim()) {
+                        e.preventDefault();
+                        setPosicoes(prev => [...prev, novaPosicao.trim()]);
+                        setNovaPosicao("");
+                      }
+                    }}
+                    className="flex-1 h-9"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!novaPosicao.trim()}
+                    onClick={() => { setPosicoes(prev => [...prev, novaPosicao.trim()]); setNovaPosicao(""); }}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             )}
 

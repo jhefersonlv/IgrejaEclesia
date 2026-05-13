@@ -162,6 +162,7 @@ export interface IStorage {
   // Ministerios
   getAllMinisterios(): Promise<Ministerio[]>;
   getMinisterioById(id: number): Promise<Ministerio | null>;
+  updateMinisterioPosicoes(id: number, posicoes: string[]): Promise<Ministerio>;
   createMinisterio(data: InsertMinisterio): Promise<Ministerio>;
   deleteMinisterio(id: number): Promise<void>;
   seedDefaultMinisterios(): Promise<void>;
@@ -1087,6 +1088,14 @@ export class DatabaseStorage implements IStorage {
   async getMinisterioById(id: number): Promise<Ministerio | null> {
     const result = await db.select().from(ministerios).where(eq(ministerios.id, id)).limit(1);
     return result[0] || null;
+  }
+
+  async updateMinisterioPosicoes(id: number, posicoes: string[]): Promise<Ministerio> {
+    const r = await db.update(ministerios)
+      .set({ posicoes: JSON.stringify(posicoes) })
+      .where(eq(ministerios.id, id))
+      .returning();
+    return r[0];
   }
 
   async createMinisterio(data: InsertMinisterio): Promise<Ministerio> {

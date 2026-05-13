@@ -48,7 +48,8 @@ export const ministerios = pgTable("ministerios", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   nome: text("nome").notNull(),
   descricao: text("descricao"),
-  tipo: text("tipo").notNull(), // louvor, obreiros, outro — mapeia para schedules.tipo
+  tipo: text("tipo").notNull(), // louvor, obreiros, outro
+  posicoes: text("posicoes"), // JSON: string[] — posições padrão das escalas
   ativo: boolean("ativo").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -416,6 +417,7 @@ export const insertMinisterioSchema = z.object({
   nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
   descricao: z.string().optional(),
   tipo: z.string().optional().default("outro"),
+  posicoes: z.string().optional().nullable(), // JSON string
   ativo: z.boolean().optional(),
 });
 

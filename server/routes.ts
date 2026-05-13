@@ -1158,6 +1158,16 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
+  app.patch("/api/admin/ministerios/:id/posicoes", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { posicoes } = req.body;
+      if (!Array.isArray(posicoes)) return res.status(400).json({ message: "posicoes deve ser um array" });
+      const updated = await storage.updateMinisterioPosicoes(id, posicoes);
+      res.json(updated);
+    } catch { res.status(500).json({ message: "Erro ao salvar posições" }); }
+  });
+
   app.delete("/api/admin/ministerios/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);

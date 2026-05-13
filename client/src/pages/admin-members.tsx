@@ -99,6 +99,8 @@ export default function AdminMembers() {
   const [isMinisteriosOpen, setIsMinisteriosOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<User | null>(null);
   const [novoMinisterioNome, setNovoMinisterioNome] = useState("");
+  const [editandoPosicoes, setEditandoPosicoes] = useState<number | null>(null);
+  const [novaPosiacao, setNovaPosicao] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterBairro, setFilterBairro] = useState("");
   const [filterProfissao, setFilterProfissao] = useState("");
@@ -153,6 +155,16 @@ export default function AdminMembers() {
       toast({ title: "Ministério adicionado ao membro!" });
     },
     onError: (error: any) => toast({ title: "Erro ao adicionar ministério", description: error.message, variant: "destructive" }),
+  });
+
+  const salvarPosicoesMutation = useMutation({
+    mutationFn: async ({ id, posicoes }: { id: number; posicoes: string[] }) =>
+      await apiRequest("PATCH", `/api/admin/ministerios/${id}/posicoes`, { posicoes }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ministerios"] });
+      toast({ title: "Posições salvas!" });
+    },
+    onError: (error: any) => toast({ title: "Erro ao salvar posições", description: error.message, variant: "destructive" }),
   });
 
   const removerMinisterioMembroMutation = useMutation({
@@ -718,18 +730,89 @@ export default function AdminMembers() {
                   {todosMinisterios.length === 0 && (
                     <p className="text-sm text-muted-foreground">Nenhum ministério cadastrado.</p>
                   )}
-                  {todosMinisterios.map((m) => (
-                    <div key={m.id} className="flex items-center justify-between p-2 border rounded-md">
-                      <span className="font-medium">{m.nome}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deletarMinisterioMutation.mutate(m.id)}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
+                  {todosMinisterios.map((m) => {
+                    const posicoes: string[] = (() => {
+                      try { return m.posicoes ? JSON.parse(m.posicoes) : []; } catch { return []; }
+                    })();
+                    const isEditing = editandoPosicoes === m.id;
+                    return (
+                      <div key={m.id} className="border rounded-md overflow-hidden">
+                        <div className="flex items-center justify-between p-2">
+                          <div>
+                            <span className="font-medium">{m.nome}</span>
+                            {posicoes.length > 0 && (
+                              <span className="text-xs text-muted-foreground ml-2">{posicoes.length} posição(ões)</span>
+                            )}
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => { setEditandoPosicoes(isEditing ? null : m.id); setNovaPosicao(""); }}
+                            >
+                              {isEditing ? "Fechar" : "Posições"}
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => deletarMinisterioMutation.mutate(m.id)}>
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {isEditing && (
+                          <div className="border-t p-3 bg-muted/30 space-y-3">
+                            <p className="text-xs text-muted-foreground">
+                              Defina os cargos/posições que aparecerão ao criar escalas deste ministério.
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {posicoes.map((pos, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 bg-background border rounded-full px-2.5 py-1 text-sm">
+                                  {pos}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const novas = posicoes.filter((_, i) => i !== idx);
+                                      salvarPosicoesMutation.mutate({ id: m.id, posicoes: novas });
+                                    }}
+                                    className="hover:text-destructive ml-0.5"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </span>
+                              ))}
+                              {posicoes.length === 0 && (
+                                <p className="text-sm text-muted-foreground italic">Nenhuma posição definida</p>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="Ex: Teclado, Professora, Porteiro..."
+                                value={novaPosiacao}
+                                onChange={(e) => setNovaPosicao(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && novaPosiacao.trim()) {
+                                    e.preventDefault();
+                                    salvarPosicoesMutation.mutate({ id: m.id, posicoes: [...posicoes, novaPosiacao.trim()] });
+                                    setNovaPosicao("");
+                                  }
+                                }}
+                                className="flex-1 h-8 text-sm"
+                              />
+                              <Button
+                                size="sm"
+                                disabled={!novaPosiacao.trim()}
+                                onClick={() => {
+                                  salvarPosicoesMutation.mutate({ id: m.id, posicoes: [...posicoes, novaPosiacao.trim()] });
+                                  setNovaPosicao("");
+                                }}
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </DialogContent>
