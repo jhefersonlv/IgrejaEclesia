@@ -204,6 +204,7 @@ export interface IStorage {
   removePermissao(moduloId: number, cargoChave: string): Promise<void>;
   checkUserHasAccess(userId: number, moduloChave: string): Promise<boolean>;
   getUserCargos(userId: number): Promise<string[]>;
+  seedModulosIniciais(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1411,6 +1412,35 @@ export class DatabaseStorage implements IStorage {
     const userCargos = await this.getUserCargos(userId);
 
     return perms.some(p => userCargos.includes(p.cargoChave));
+  }
+
+  /**
+   * Cria os módulos iniciais do sistema caso ainda não existam.
+   * Cada módulo recebe suas permissões padrão por cargo.
+   */
+  async seedModulosIniciais(): Promise<void> {
+    const existing = await db.select().from(modulos).limit(1);
+    if (existing.length > 0) return;
+
+    const modulosDefs: { chave: string; nome: string; cargos: string[] }[] = [
+      { chave: "membros",    nome: "Gestão de Membros",       cargos: ["admin"] },
+      { chave: "cursos",     nome: "Gestão de Cursos",         cargos: ["admin"] },
+      { chave: "eventos",    nome: "Gestão de Eventos",        cargos: ["admin"] },
+      { chave: "materiais",  nome: "Gestão de Materiais",      cargos: ["admin"] },
+      { chave: "oracoes",    nome: "Gestão de Orações",        cargos: ["admin"] },
+      { chave: "analytics",  nome: "Analytics e Relatórios",   cargos: ["admin"] },
+      { chave: "visitantes", nome: "Módulo de Visitantes",     cargos: ["admin", "ministerio:Ministério de Obreiros"] },
+      { chave: "escalas",    nome: "Gerenciar Escalas",        cargos: ["admin", "lider"] },
+      { chave: "ministerios",nome: "Configurar Ministérios",   cargos: ["admin"] },
+      { chave: "cultos",     nome: "Cultos Recorrentes",       cargos: ["admin"] },
+    ];
+
+    for (const def of modulosDefs) {
+      const [modulo] = await db.insert(modulos).values({ chave: def.chave, nome: def.nome, ativo: true }).returning();
+      for (const cargo of def.cargos) {
+        await db.insert(permissoes).values({ moduloId: modulo.id, cargoChave: cargo }).onConflictDoNothing();
+      }
+    }
   }
 }
 

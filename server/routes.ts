@@ -1,4 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
+import { requireModulo } from "./auth";
 import { storage } from "./storage";
 import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema, insertQuestionSchema, insertVisitorSchema, insertMinisterioSchema, scheduleAssignments, insertCultoRecorrenteSchema, insertScheduleRequestSchema, insertModuloSchema, insertPermissaoSchema } from "@shared/schema";
 import { db } from "./db";
@@ -200,7 +201,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.post("/api/admin/members", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/admin/members", authenticateToken, requireModulo("membros"), async (req: Request, res: Response) => {
     try {
       const userData = insertUserSchema.parse(req.body);
       const existingUser = await storage.getUserByEmail(userData.email);
@@ -221,7 +222,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.patch("/api/admin/members/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.patch("/api/admin/members/:id", authenticateToken, requireModulo("membros"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       // Create a partial schema for updates (senha is optional)
@@ -288,7 +289,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.delete("/api/admin/members/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/admin/members/:id", authenticateToken, requireModulo("membros"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteUser(id);
@@ -300,7 +301,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   });
 
   // Admin Routes - Courses
-  app.post("/api/admin/courses", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/admin/courses", authenticateToken, requireModulo("cursos"), async (req: Request, res: Response) => {
     try {
       const courseData = insertCourseSchema.parse(req.body);
       const newCourse = await storage.createCourse(courseData);
@@ -314,7 +315,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.patch("/api/admin/courses/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.patch("/api/admin/courses/:id", authenticateToken, requireModulo("cursos"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const courseData = insertCourseSchema.partial().parse(req.body);
@@ -329,7 +330,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.delete("/api/admin/courses/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/admin/courses/:id", authenticateToken, requireModulo("cursos"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteCourse(id);
@@ -341,7 +342,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   });
 
   // Admin Routes - Course Enrollments
-  app.get("/api/admin/courses/:courseId/enrollments", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.get("/api/admin/courses/:courseId/enrollments", authenticateToken, requireModulo("cursos"), async (req: Request, res: Response) => {
     try {
       const courseId = parseInt(req.params.courseId);
       const users = await storage.getEnrolledUsers(courseId);
@@ -353,7 +354,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.post("/api/admin/courses/:courseId/enrollments", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/admin/courses/:courseId/enrollments", authenticateToken, requireModulo("cursos"), async (req: Request, res: Response) => {
     try {
       const courseId = parseInt(req.params.courseId);
       const { userId } = req.body;
@@ -374,7 +375,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.delete("/api/admin/courses/:courseId/enrollments/:userId", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/admin/courses/:courseId/enrollments/:userId", authenticateToken, requireModulo("cursos"), async (req: Request, res: Response) => {
     try {
       const courseId = parseInt(req.params.courseId);
       const userId = parseInt(req.params.userId);
@@ -387,7 +388,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   });
 
   // Admin Routes - Lessons
-  app.post("/api/admin/lessons", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/admin/lessons", authenticateToken, requireModulo("cursos"), async (req: Request, res: Response) => {
     try {
       const lessonData = insertLessonSchema.parse(req.body);
       const newLesson = await storage.createLesson(lessonData);
@@ -401,7 +402,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.delete("/api/admin/lessons/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/admin/lessons/:id", authenticateToken, requireModulo("cursos"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteLesson(id);
@@ -413,7 +414,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   });
 
   // Admin Routes - Events
-  app.get("/api/admin/events", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.get("/api/admin/events", authenticateToken, requireModulo("eventos"), async (req: Request, res: Response) => {
     try {
       const eventsList = await storage.getAllEvents();
       res.json(eventsList);
@@ -422,7 +423,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.post("/api/admin/events", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/admin/events", authenticateToken, requireModulo("eventos"), async (req: Request, res: Response) => {
     try {
       const eventData = insertEventSchema.parse(req.body);
       const conflict = await storage.checkEventLocationConflict(eventData.local, eventData.data);
@@ -442,7 +443,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.patch("/api/admin/events/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.patch("/api/admin/events/:id", authenticateToken, requireModulo("eventos"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const updateData = insertEventSchema.partial().parse(req.body);
@@ -465,7 +466,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.delete("/api/admin/events/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/admin/events/:id", authenticateToken, requireModulo("eventos"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteEvent(id);
@@ -491,7 +492,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   });
 
   // Admin Routes - Materials
-  app.post("/api/admin/materials", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/admin/materials", authenticateToken, requireModulo("materiais"), async (req: Request, res: Response) => {
     try {
       const materialData = insertMaterialSchema.parse(req.body);
       const newMaterial = await storage.createMaterial(materialData);
@@ -505,7 +506,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.delete("/api/admin/materials/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/admin/materials/:id", authenticateToken, requireModulo("materiais"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteMaterial(id);
@@ -541,7 +542,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.get("/api/admin/prayers", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.get("/api/admin/prayers", authenticateToken, requireModulo("oracoes"), async (req: Request, res: Response) => {
     try {
       const prayers = await storage.getAllPrayerRequests();
       res.json(prayers);
@@ -551,7 +552,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.patch("/api/admin/prayers/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.patch("/api/admin/prayers/:id", authenticateToken, requireModulo("oracoes"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const updateSchema = z.object({
@@ -570,7 +571,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.delete("/api/admin/prayers/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/admin/prayers/:id", authenticateToken, requireModulo("oracoes"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deletePrayerRequest(id);
@@ -582,7 +583,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   });
 
   // Analytics Routes
-  app.get("/api/admin/analytics/members", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.get("/api/admin/analytics/members", authenticateToken, requireModulo("analytics"), async (req: Request, res: Response) => {
     try {
       const analytics = await storage.getMemberAnalytics();
       res.json(analytics);
@@ -592,7 +593,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.get("/api/admin/analytics/courses", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.get("/api/admin/analytics/courses", authenticateToken, requireModulo("analytics"), async (req: Request, res: Response) => {
     try {
       const analytics = await storage.getCourseAnalytics();
       res.json(analytics);
@@ -602,7 +603,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.get("/api/admin/analytics/visitors", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.get("/api/admin/analytics/visitors", authenticateToken, requireModulo("analytics"), async (req: Request, res: Response) => {
     try {
       const analytics = await storage.getVisitorAnalytics();
       res.json(analytics);
@@ -612,7 +613,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.get("/api/admin/analytics/general", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.get("/api/admin/analytics/general", authenticateToken, requireModulo("analytics"), async (req: Request, res: Response) => {
     try {
       const analytics = await storage.getGeneralAnalytics();
       res.json(analytics);
@@ -835,7 +836,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   });
 
   // Create questions for a lesson (admin only)
-  app.post("/api/admin/lessons/:id/questions", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/admin/lessons/:id/questions", authenticateToken, requireModulo("cursos"), async (req: Request, res: Response) => {
     try {
       const lessonId = parseInt(req.params.id);
       const { questions: questionsData } = req.body;
@@ -951,7 +952,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   });
 
   // Get all users progress for a course (admin only)
-  app.get("/api/admin/courses/:id/progress", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.get("/api/admin/courses/:id/progress", authenticateToken, requireModulo("cursos"), async (req: Request, res: Response) => {
     try {
       const courseId = parseInt(req.params.id);
       const allProgress = await storage.getAllUsersProgress(courseId);
@@ -963,7 +964,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   });
 
   // Visitors API
-  app.get("/api/admin/visitors", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.get("/api/admin/visitors", authenticateToken, requireModulo("visitantes"), async (req: Request, res: Response) => {
     try {
       const visitors = await storage.getAllVisitors();
       res.json(visitors);
@@ -973,7 +974,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.post("/api/admin/visitors", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/admin/visitors", authenticateToken, requireModulo("visitantes"), async (req: Request, res: Response) => {
     try {
       const visitorData = insertVisitorSchema.parse(req.body);
       const newVisitor = await storage.createVisitor(visitorData);
@@ -987,7 +988,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.patch("/api/admin/visitors/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.patch("/api/admin/visitors/:id", authenticateToken, requireModulo("visitantes"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const updateSchema = insertVisitorSchema.partial();
@@ -1003,7 +1004,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.delete("/api/admin/visitors/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/admin/visitors/:id", authenticateToken, requireModulo("visitantes"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteVisitor(id);
@@ -1015,7 +1016,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   });
 
   // Member Visitors API (for Obreiros)
-  app.get("/api/member/visitors", authenticateToken, requireObreiro, async (req: Request, res: Response) => {
+  app.get("/api/member/visitors", authenticateToken, requireModulo("visitantes"), async (req: Request, res: Response) => {
     try {
       const visitors = await storage.getAllVisitors();
       res.json(visitors);
@@ -1025,7 +1026,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.post("/api/member/visitors", authenticateToken, requireObreiro, async (req: Request, res: Response) => {
+  app.post("/api/member/visitors", authenticateToken, requireModulo("visitantes"), async (req: Request, res: Response) => {
     try {
       const visitorData = insertVisitorSchema.parse(req.body);
       const newVisitor = await storage.createVisitor(visitorData);
@@ -1039,7 +1040,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.patch("/api/member/visitors/:id", authenticateToken, requireObreiro, async (req: Request, res: Response) => {
+  app.patch("/api/member/visitors/:id", authenticateToken, requireModulo("visitantes"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const updateSchema = insertVisitorSchema.partial();
@@ -1055,7 +1056,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.delete("/api/member/visitors/:id", authenticateToken, requireObreiro, async (req: Request, res: Response) => {
+  app.delete("/api/member/visitors/:id", authenticateToken, requireModulo("visitantes"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteVisitor(id);
@@ -1181,7 +1182,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.post("/api/admin/cultos-recorrentes", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.post("/api/admin/cultos-recorrentes", authenticateToken, requireModulo("cultos"), async (req: Request, res: Response) => {
     try {
       const data = insertCultoRecorrenteSchema.parse(req.body);
       const { ministerioIds, ...cultoData } = req.body;
@@ -1203,7 +1204,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.patch("/api/admin/cultos-recorrentes/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.patch("/api/admin/cultos-recorrentes/:id", authenticateToken, requireModulo("cultos"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const data = insertCultoRecorrenteSchema.partial().parse(req.body);
@@ -1217,7 +1218,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  app.delete("/api/admin/cultos-recorrentes/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+  app.delete("/api/admin/cultos-recorrentes/:id", authenticateToken, requireModulo("cultos"), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteCultoRecorrente(id);
@@ -1285,16 +1286,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
 
   // ── Módulos e Permissões ────────────────────────────────────────────────────
 
-  // Middleware reutilizável: requer acesso ao módulo
-  app.locals.requireModulo = function requireModulo(moduloChave: string) {
-    return async (req: Request, res: Response, next: NextFunction) => {
-      const user = (req as any).user;
-      if (!user) return res.status(401).json({ message: "Não autenticado" });
-      const ok = await storage.checkUserHasAccess(user.id, moduloChave);
-      if (!ok) return res.status(403).json({ message: `Acesso ao módulo "${moduloChave}" negado.` });
-      next();
-    };
-  };
+
 
   app.get("/api/admin/modulos", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
