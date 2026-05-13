@@ -11,7 +11,7 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { BookOpen, Video, GraduationCap, User, LogOut, CalendarDays, Heart, Shield, Home, Users, Music, Users2 } from "lucide-react";
+import { BookOpen, Video, GraduationCap, User, LogOut, CalendarDays, Heart, Shield, Home, Users, Music, Users2, CalendarRange } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 
@@ -52,6 +52,11 @@ export function AppSidebar({ userNome, isLider, isAdmin, isObreiro, isLouvor, fo
       title: "Pedidos de Oração",
       url: "/membro/oracoes",
       icon: Heart,
+    },
+    {
+      title: "Agenda",
+      url: "/membro/agenda",
+      icon: CalendarRange,
     },
     {
       title: "Perfil",

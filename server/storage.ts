@@ -48,7 +48,10 @@ export interface IStorage {
   getAllEvents(): Promise<Event[]>;
   getPublicEvents(): Promise<Event[]>;
   createEvent(data: InsertEvent): Promise<Event>;
+  updateEvent(id: number, data: Partial<InsertEvent>): Promise<Event>;
   deleteEvent(id: number): Promise<void>;
+  checkEventLocationConflict(local: string, data: string, excludeId?: number): Promise<{ hasConflict: boolean; conflictEvent?: { id: number; titulo: string; data: string } }>;
+  getAgenda(month: number, year: number, userId: number, isAdmin: boolean, ministerioIds: number[]): Promise<{ events: Event[]; schedules: ScheduleWithAssignments[] }>;
   
   // Courses
   getAllCourses(): Promise<Course[]>;
@@ -299,7 +302,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPublicEvents(): Promise<Event[]> {
-    return await db.select().from(events).orderBy(events.data);
+    return await db.select().from(events).where(eq(events.isPublico, true)).orderBy(events.data);
   }
 
   async createEvent(data: InsertEvent): Promise<Event> {
@@ -307,8 +310,65 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async updateEvent(id: number, data: Partial<InsertEvent>): Promise<Event> {
+    const result = await db.update(events).set(data).where(eq(events.id, id)).returning();
+    return result[0];
+  }
+
   async deleteEvent(id: number): Promise<void> {
     await db.delete(events).where(eq(events.id, id));
+  }
+
+  async checkEventLocationConflict(
+    local: string,
+    data: string,
+    excludeId?: number
+  ): Promise<{ hasConflict: boolean; conflictEvent?: { id: number; titulo: string; data: string } }> {
+    const conditions = [eq(events.local, local), eq(events.data, data)];
+    if (excludeId) conditions.push(ne(events.id, excludeId));
+
+    const conflicts = await db
+      .select({ id: events.id, titulo: events.titulo, data: events.data })
+      .from(events)
+      .where(and(...conditions))
+      .limit(1);
+
+    if (conflicts.length > 0) return { hasConflict: true, conflictEvent: conflicts[0] };
+    return { hasConflict: false };
+  }
+
+  async getAgenda(
+    month: number,
+    year: number,
+    userId: number,
+    isAdmin: boolean,
+    ministerioIds: number[]
+  ): Promise<{ events: Event[]; schedules: ScheduleWithAssignments[] }> {
+    // Escalas do mês
+    const schedules = await this.getSchedulesByMonth(month, year);
+
+    // Escalas filtradas por ministério (admin vê todas)
+    const filteredSchedules = isAdmin
+      ? schedules
+      : schedules.filter(s => s.ministerioId && ministerioIds.includes(s.ministerioId));
+
+    // Eventos: públicos + privados do ministério do usuário + admin vê todos
+    let eventRows: Event[];
+    if (isAdmin) {
+      eventRows = await db.select().from(events)
+        .where(and(sql`EXTRACT(MONTH FROM ${events.data}::date) = ${month}`, sql`EXTRACT(YEAR FROM ${events.data}::date) = ${year}`))
+        .orderBy(events.data);
+    } else {
+      eventRows = await db.select().from(events)
+        .where(and(
+          sql`EXTRACT(MONTH FROM ${events.data}::date) = ${month}`,
+          sql`EXTRACT(YEAR FROM ${events.data}::date) = ${year}`,
+          sql`(${events.isPublico} = true OR ${events.ministerioId} IN ${ministerioIds.length > 0 ? sql`(${sql.join(ministerioIds.map(id => sql`${id}`), sql`, `)})` : sql`(NULL)`})`
+        ))
+        .orderBy(events.data);
+    }
+
+    return { events: eventRows, schedules: filteredSchedules };
   }
 
   // Courses

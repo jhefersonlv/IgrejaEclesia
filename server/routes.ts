@@ -415,10 +415,9 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   // Admin Routes - Events
   app.get("/api/admin/events", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
-      const events = await storage.getAllEvents();
-      res.json(events);
+      const eventsList = await storage.getAllEvents();
+      res.json(eventsList);
     } catch (error) {
-      console.error("Get events error:", error);
       res.status(500).json({ message: "Erro ao buscar eventos" });
     }
   });
@@ -426,14 +425,43 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   app.post("/api/admin/events", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
       const eventData = insertEventSchema.parse(req.body);
+      const conflict = await storage.checkEventLocationConflict(eventData.local, eventData.data);
+      if (conflict.hasConflict && conflict.conflictEvent) {
+        return res.status(409).json({
+          message: `Já existe um evento neste local nesta data: "${conflict.conflictEvent.titulo}".`,
+          conflictEvent: conflict.conflictEvent,
+        });
+      }
       const newEvent = await storage.createEvent(eventData);
       res.status(201).json(newEvent);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
       }
-      console.error("Create event error:", error);
       res.status(500).json({ message: "Erro ao criar evento" });
+    }
+  });
+
+  app.patch("/api/admin/events/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updateData = insertEventSchema.partial().parse(req.body);
+      if (updateData.local && updateData.data) {
+        const conflict = await storage.checkEventLocationConflict(updateData.local, updateData.data, id);
+        if (conflict.hasConflict && conflict.conflictEvent) {
+          return res.status(409).json({
+            message: `Já existe um evento neste local nesta data: "${conflict.conflictEvent.titulo}".`,
+            conflictEvent: conflict.conflictEvent,
+          });
+        }
+      }
+      const updated = await storage.updateEvent(id, updateData);
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      res.status(500).json({ message: "Erro ao atualizar evento" });
     }
   });
 
@@ -443,8 +471,22 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
       await storage.deleteEvent(id);
       res.status(204).send();
     } catch (error) {
-      console.error("Delete event error:", error);
       res.status(500).json({ message: "Erro ao deletar evento" });
+    }
+  });
+
+  // Agenda unificada (eventos + escalas filtrados por papel)
+  app.get("/api/agenda", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const month = req.query.month ? parseInt(req.query.month as string) : new Date().getMonth() + 1;
+      const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
+      const ministeriosList = await storage.getUserMinisterios(user.id);
+      const ministerioIds = ministeriosList.map((m: any) => m.id);
+      const agenda = await storage.getAgenda(month, year, user.id, user.isAdmin, ministerioIds);
+      res.json(agenda);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar agenda" });
     }
   });
 

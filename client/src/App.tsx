@@ -28,6 +28,7 @@ import AdminPrayers from "@/pages/admin-prayers";
 import AdminAnalytics from "@/pages/admin-analytics";
 import AdminVisitors from "@/pages/admin-visitors";
 import MemberVisitors from "@/pages/member-visitors";
+import Agenda from "@/pages/agenda";
 
 function Router() {
   return (
@@ -83,6 +84,13 @@ function Router() {
         </MemberLayout>
       </Route>
       
+      {/* Agenda */}
+      <Route path="/membro/agenda">
+        <MemberLayout>
+          <Agenda />
+        </MemberLayout>
+      </Route>
+
       {/* Líder de Escalas */}
       <Route path="/lider/escalas">
         <MemberLayout>

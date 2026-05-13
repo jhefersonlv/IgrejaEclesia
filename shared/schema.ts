@@ -48,8 +48,10 @@ export const events = pgTable("events", {
   titulo: text("titulo").notNull(),
   descricao: text("descricao").notNull(),
   data: date("data").notNull(),
-  local: text("local").notNull(),
+  local: text("local").notNull(), // "eclesia" | "missoes-vidas" | "externo"
   imagem: text("imagem"),
+  ministerioId: integer("ministerio_id").references(() => ministerios.id, { onDelete: "set null" }),
+  isPublico: boolean("is_publico").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -230,12 +232,21 @@ export const insertUserSchema = z.object({
   fotoUrl: z.string().optional(),
 });
 
+export const LOCAIS_EVENTO = ["eclesia", "missoes-vidas", "externo"] as const;
+export const LOCAIS_LABELS: Record<string, string> = {
+  eclesia: "Eclesia",
+  "missoes-vidas": "Missões e Vidas",
+  externo: "Evento Externo",
+};
+
 export const insertEventSchema = z.object({
-  titulo: z.string(),
-  descricao: z.string(),
-  data: z.string(),
-  local: z.string(),
-  imagem: z.string().optional(),
+  titulo: z.string().min(1, "Título obrigatório"),
+  descricao: z.string().min(1, "Descrição obrigatória"),
+  data: z.string().min(1, "Data obrigatória"),
+  local: z.enum(LOCAIS_EVENTO, { required_error: "Selecione o local" }),
+  imagem: z.string().optional().nullable(),
+  ministerioId: z.number().optional().nullable(),
+  isPublico: z.boolean().optional().default(true),
 });
 
 export const insertCourseSchema = z.object({
