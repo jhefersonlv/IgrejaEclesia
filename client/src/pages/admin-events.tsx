@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Calendar, Plus, Trash2, MapPin, Pencil, Globe, Lock, Building2, Upload, AlertCircle } from "lucide-react";
+import { Calendar, Plus, Trash2, MapPin, Pencil, Globe, Lock, Building2, Upload, AlertCircle, RepeatIcon } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Event } from "@shared/schema";
 import { LOCAIS_LABELS } from "@shared/schema";
@@ -34,10 +34,57 @@ export default function AdminEvents() {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"eventos" | "cultos">("eventos");
   const { toast } = useToast();
 
   const { data: events = [], isLoading } = useQuery<Event[]>({ queryKey: ["/api/admin/events"] });
   const { data: ministerios = [] } = useQuery<Ministerio[]>({ queryKey: ["/api/ministerios"] });
+
+  // Cultos recorrentes
+  interface CultoRecorrente { id: number; titulo: string; descricao: string | null; local: string; diaSemana: number; dataInicio: string; dataFim: string | null; isPublico: boolean }
+  interface CultoFormData { titulo: string; descricao: string; local: "eclesia"|"missoes-vidas"|"externo"; diaSemana: string; dataInicio: string; dataFim: string; isPublico: boolean; escalaMinisterioIds: number[] }
+  const DIAS_SEMANA_FULL = ["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"];
+
+  const { data: cultos = [], isLoading: cultosLoading } = useQuery<CultoRecorrente[]>({ queryKey: ["/api/cultos-recorrentes"] });
+  const [editingCultoId, setEditingCultoId] = useState<number | null>(null);
+  const cultoForm = useForm<CultoFormData>({
+    defaultValues: { titulo: "", descricao: "", local: "eclesia", diaSemana: "0", dataInicio: "", dataFim: "", isPublico: true, escalaMinisterioIds: [] },
+  });
+  const escalaMinisteriosCulto = cultoForm.watch("escalaMinisterioIds");
+
+  const saveCultoMutation = useMutation({
+    mutationFn: async (data: CultoFormData) => {
+      const { escalaMinisterioIds: mids, ...rest } = data;
+      const payload = { ...rest, descricao: data.descricao || null, diaSemana: parseInt(data.diaSemana), dataFim: data.dataFim || null };
+      if (editingCultoId) {
+        return apiRequest<CultoRecorrente>("PATCH", `/api/admin/cultos-recorrentes/${editingCultoId}`, payload);
+      }
+      const created = await apiRequest<CultoRecorrente>("POST", "/api/admin/cultos-recorrentes", payload);
+      for (const mid of (mids ?? [])) {
+        await apiRequest("POST", "/api/admin/schedule-requests", { cultoRecorrenteId: created.id, ministerioId: mid });
+      }
+      return created;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cultos-recorrentes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/schedule-requests/pendentes"] });
+      cultoForm.reset({ titulo: "", descricao: "", local: "eclesia", diaSemana: "0", dataInicio: "", dataFim: "", isPublico: true, escalaMinisterioIds: [] });
+      setEditingCultoId(null);
+      toast({ title: editingCultoId ? "Culto atualizado!" : "Culto criado!" });
+    },
+    onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteCultoMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/cultos-recorrentes/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cultos-recorrentes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
+      toast({ title: "Culto removido" });
+    },
+    onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+  });
 
   const defaultValues: EventFormData = {
     titulo: "", descricao: "", data: "", local: "eclesia", ministerioId: null, isPublico: true, escalaMinisterioIds: [],
@@ -281,10 +328,34 @@ export default function AdminEvents() {
 
   return (
     <div className="space-y-8">
+      <div>
+        <h1 className="font-sans text-4xl font-semibold mb-2">Gerenciar Eventos</h1>
+        <p className="text-lg text-muted-foreground">Eventos pontuais e cultos recorrentes</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b">
+        <button
+          onClick={() => setActiveTab("eventos")}
+          className={`px-4 py-2 -mb-px font-medium text-sm border-b-2 transition-colors ${activeTab === "eventos" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          <Calendar className="w-4 h-4 inline mr-2" />
+          Eventos ({events.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("cultos")}
+          className={`px-4 py-2 -mb-px font-medium text-sm border-b-2 transition-colors ${activeTab === "cultos" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+        >
+          <RepeatIcon className="w-4 h-4 inline mr-2" />
+          Cultos Recorrentes ({cultos.length})
+        </button>
+      </div>
+
+      {/* Aba Eventos */}
+      {activeTab === "eventos" && <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="font-sans text-4xl font-semibold mb-2">Gerenciar Eventos</h1>
-          <p className="text-lg text-muted-foreground">{events.length} eventos cadastrados</p>
+          <p className="text-muted-foreground">{events.length} evento(s) cadastrado(s)</p>
         </div>
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
@@ -366,6 +437,138 @@ export default function AdminEvents() {
             <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2" />Criar Primeiro Evento</Button>
           </CardContent>
         </Card>
+      )}
+      </div>}
+
+      {/* Aba Cultos Recorrentes */}
+      {activeTab === "cultos" && (
+        <div className="space-y-6">
+          {/* Form */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{editingCultoId ? "Editar Culto Recorrente" : "Novo Culto Recorrente"}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={cultoForm.handleSubmit(d => saveCultoMutation.mutate(d))} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2 space-y-1">
+                    <Label>Título *</Label>
+                    <Input {...cultoForm.register("titulo", { required: "Obrigatório" })} />
+                    {cultoForm.formState.errors.titulo && <p className="text-xs text-destructive">{cultoForm.formState.errors.titulo.message}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Dia da semana *</Label>
+                    <Controller name="diaSemana" control={cultoForm.control} render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {DIAS_SEMANA_FULL.map((d, i) => <SelectItem key={i} value={i.toString()}>{d}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Local *</Label>
+                    <Controller name="local" control={cultoForm.control} render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="eclesia">Eclesia</SelectItem>
+                          <SelectItem value="missoes-vidas">Missões e Vidas</SelectItem>
+                          <SelectItem value="externo">Evento Externo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Data de início *</Label>
+                    <Input type="date" {...cultoForm.register("dataInicio", { required: "Obrigatório" })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Data de fim (opcional)</Label>
+                    <Input type="date" {...cultoForm.register("dataFim")} />
+                    <p className="text-xs text-muted-foreground">Deixe em branco para recorrência sem fim</p>
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <Label>Descrição</Label>
+                    <Input {...cultoForm.register("descricao")} />
+                  </div>
+                </div>
+
+                {/* Solicitar escalas — só ao criar */}
+                {!editingCultoId && ministerios.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t">
+                    <Label>Solicitar escalas de ministérios (opcional)</Label>
+                    <p className="text-xs text-muted-foreground">Os líderes selecionados receberão uma solicitação de escala para este culto.</p>
+                    <div className="flex flex-wrap gap-2">
+                      {ministerios.map(m => {
+                        const sel = (escalaMinisteriosCulto ?? []).includes(m.id);
+                        return (
+                          <button key={m.id} type="button"
+                            onClick={() => {
+                              const cur = escalaMinisteriosCulto ?? [];
+                              cultoForm.setValue("escalaMinisterioIds", sel ? cur.filter(id => id !== m.id) : [...cur, m.id]);
+                            }}
+                            className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${sel ? "bg-primary text-primary-foreground border-primary" : "border-input hover:bg-muted"}`}
+                          >
+                            {m.nome}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center pt-2">
+                  {editingCultoId && (
+                    <Button type="button" variant="outline" onClick={() => { setEditingCultoId(null); cultoForm.reset(); }}>
+                      Cancelar edição
+                    </Button>
+                  )}
+                  <Button type="submit" disabled={saveCultoMutation.isPending} className="ml-auto">
+                    <Plus className="w-4 h-4 mr-2" />{editingCultoId ? "Salvar alterações" : "Criar culto"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Lista */}
+          <div className="space-y-2">
+            {cultosLoading && <p className="text-muted-foreground text-sm">Carregando...</p>}
+            {!cultosLoading && cultos.length === 0 && (
+              <Card><CardContent className="py-12 text-center text-muted-foreground">Nenhum culto recorrente cadastrado.</CardContent></Card>
+            )}
+            {cultos.map(c => (
+              <Card key={c.id}>
+                <CardContent className="p-4 flex items-center justify-between gap-4">
+                  <div>
+                    <div className="font-semibold">{c.titulo}</div>
+                    <div className="text-sm text-muted-foreground flex items-center gap-3 mt-0.5">
+                      <span>{DIAS_SEMANA_FULL[c.diaSemana]}</span>
+                      <span>·</span>
+                      <span>{LOCAIS_LABELS[c.local] ?? c.local}</span>
+                      <span>·</span>
+                      <span>A partir de {new Date(c.dataInicio + "T12:00:00").toLocaleDateString("pt-BR")}</span>
+                      {c.dataFim && <><span>·</span><span>Até {new Date(c.dataFim + "T12:00:00").toLocaleDateString("pt-BR")}</span></>}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button variant="outline" size="icon" onClick={() => {
+                      setEditingCultoId(c.id);
+                      cultoForm.reset({ titulo: c.titulo, descricao: c.descricao ?? "", local: c.local as any, diaSemana: c.diaSemana.toString(), dataInicio: c.dataInicio, dataFim: c.dataFim ?? "", isPublico: c.isPublico, escalaMinisterioIds: [] });
+                    }}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button variant="destructive" size="icon" onClick={() => confirm(`Remover "${c.titulo}"?`) && deleteCultoMutation.mutate(c.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

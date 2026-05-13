@@ -1,20 +1,14 @@
 import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import type { Event, ScheduleAssignment, User } from "@shared/schema";
 import { LOCAIS_LABELS } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, MapPin, Music, Users, Building2, Globe, Lock, Calendar, Plus, Pencil, Trash2, RepeatIcon } from "lucide-react";
-import { format, parseISO, startOfMonth, endOfMonth, getDay, getDaysInMonth } from "date-fns";
+import { ChevronLeft, ChevronRight, MapPin, Music, Users, Building2, Globe, Lock, Calendar, RepeatIcon } from "lucide-react";
+import { format, parseISO, getDay, getDaysInMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useToast } from "@/hooks/use-toast";
-import { useForm, Controller } from "react-hook-form";
 
 interface Schedule {
   id: number;
@@ -61,224 +55,6 @@ interface DayData {
   events: Event[];
   schedules: Schedule[];
   cultos: CultoOcorrencia[];
-}
-
-function useIsAdmin() {
-  const { data: user } = useQuery<any>({ queryKey: ["/api/auth/me"] });
-  return user?.isAdmin ?? false;
-}
-
-// ─── Culto Form ──────────────────────────────────────────────────────────────
-interface CultoFormData {
-  titulo: string;
-  descricao: string;
-  local: "eclesia" | "missoes-vidas" | "externo";
-  diaSemana: string;
-  dataInicio: string;
-  dataFim: string;
-  isPublico: boolean;
-  escalaMinisterioIds: number[];
-}
-
-function CultosRecorrentesDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { toast } = useToast();
-  const [editingId, setEditingId] = useState<number | null>(null);
-
-  const { data: cultos = [], isLoading } = useQuery<CultoRecorrente[]>({
-    queryKey: ["/api/cultos-recorrentes"],
-    enabled: open,
-  });
-
-  const { data: todosMinisterios = [] } = useQuery<{ id: number; nome: string }[]>({
-    queryKey: ["/api/ministerios"],
-    enabled: open,
-  });
-
-  const { register, handleSubmit, control, reset, watch, setValue, formState: { errors } } = useForm<CultoFormData>({
-    defaultValues: { titulo: "", descricao: "", local: "eclesia", diaSemana: "0", dataInicio: "", dataFim: "", isPublico: true, escalaMinisterioIds: [] },
-  });
-
-  const escalaMinisterioIds = watch("escalaMinisterioIds");
-
-  const saveMutation = useMutation({
-    mutationFn: async (data: CultoFormData) => {
-      const { escalaMinisterioIds: ministerioIds, ...rest } = data;
-      const payload = {
-        ...rest,
-        descricao: data.descricao || null,
-        diaSemana: parseInt(data.diaSemana),
-        dataFim: data.dataFim || null,
-      };
-      let cultoId: number;
-      if (editingId) {
-        const updated = await apiRequest<{ id: number }>("PATCH", `/api/admin/cultos-recorrentes/${editingId}`, payload);
-        cultoId = updated.id;
-      } else {
-        const created = await apiRequest<{ id: number }>("POST", "/api/admin/cultos-recorrentes", payload);
-        cultoId = created.id;
-        for (const mid of (ministerioIds ?? [])) {
-          await apiRequest("POST", "/api/admin/schedule-requests", {
-            cultoRecorrenteId: cultoId,
-            ministerioId: mid,
-          });
-        }
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cultos-recorrentes"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/schedule-requests/pendentes"] });
-      reset({ titulo: "", descricao: "", local: "eclesia", diaSemana: "0", dataInicio: "", dataFim: "", isPublico: true, escalaMinisterioIds: [] });
-      setEditingId(null);
-      toast({ title: editingId ? "Culto atualizado!" : "Culto criado!" });
-    },
-    onError: (e: any) => toast({ title: "Erro ao salvar", description: e.message, variant: "destructive" }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/cultos-recorrentes/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cultos-recorrentes"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/agenda"] });
-      toast({ title: "Culto removido" });
-    },
-    onError: (e: any) => toast({ title: "Erro ao remover", description: e.message, variant: "destructive" }),
-  });
-
-  const openEdit = (c: CultoRecorrente) => {
-    setEditingId(c.id);
-    reset({
-      titulo: c.titulo,
-      descricao: c.descricao ?? "",
-      local: c.local as any,
-      diaSemana: c.diaSemana.toString(),
-      dataInicio: c.dataInicio,
-      dataFim: c.dataFim ?? "",
-      isPublico: c.isPublico,
-      escalaMinisterioIds: [],
-    });
-  };
-
-  const openNew = () => {
-    setEditingId(null);
-    reset({ titulo: "", descricao: "", local: "eclesia", diaSemana: "0", dataInicio: "", dataFim: "", isPublico: true, escalaMinisterioIds: [] });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><RepeatIcon className="w-5 h-5" />Cultos Recorrentes</DialogTitle>
-          <DialogDescription>Gerencie os cultos que acontecem toda semana</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-6">
-          {/* Form */}
-          <form onSubmit={handleSubmit(d => saveMutation.mutate(d))} className="space-y-3 border rounded-lg p-4">
-            <h3 className="font-semibold">{editingId ? "Editar culto" : "Novo culto recorrente"}</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2 space-y-1">
-                <Label>Título *</Label>
-                <Input {...register("titulo", { required: "Obrigatório" })} />
-                {errors.titulo && <p className="text-xs text-destructive">{errors.titulo.message}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label>Dia da semana *</Label>
-                <Controller name="diaSemana" control={control} render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {DIAS_SEMANA_FULL.map((d, i) => <SelectItem key={i} value={i.toString()}>{d}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                )} />
-              </div>
-              <div className="space-y-1">
-                <Label>Local *</Label>
-                <Controller name="local" control={control} render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="eclesia">Eclesia</SelectItem>
-                      <SelectItem value="missoes-vidas">Missões e Vidas</SelectItem>
-                      <SelectItem value="externo">Externo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )} />
-              </div>
-              <div className="space-y-1">
-                <Label>Data início *</Label>
-                <Input type="date" {...register("dataInicio", { required: "Obrigatório" })} />
-              </div>
-              <div className="space-y-1">
-                <Label>Data fim (opcional)</Label>
-                <Input type="date" {...register("dataFim")} />
-              </div>
-              <div className="col-span-2 space-y-1">
-                <Label>Descrição</Label>
-                <Input {...register("descricao")} />
-              </div>
-            </div>
-            {/* Solicitar escalas — só ao criar */}
-            {!editingId && todosMinisterios.length > 0 && (
-              <div className="space-y-2 pt-1">
-                <Label className="text-sm font-medium">Solicitar escalas de ministérios (opcional)</Label>
-                <p className="text-xs text-muted-foreground">Os líderes selecionados receberão uma solicitação de escala para cada ocorrência deste culto.</p>
-                <div className="flex flex-wrap gap-2">
-                  {todosMinisterios.map(m => {
-                    const selected = (escalaMinisterioIds ?? []).includes(m.id);
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => {
-                          const current = escalaMinisterioIds ?? [];
-                          setValue("escalaMinisterioIds", selected ? current.filter(id => id !== m.id) : [...current, m.id]);
-                        }}
-                        className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                          selected ? "bg-primary text-primary-foreground border-primary" : "border-input hover:bg-muted"
-                        }`}
-                      >
-                        {m.nome}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-between items-center pt-2">
-              {editingId && <Button type="button" variant="outline" onClick={openNew}>Cancelar edição</Button>}
-              <Button type="submit" disabled={saveMutation.isPending} className="ml-auto">
-                <Plus className="w-4 h-4 mr-2" />{editingId ? "Salvar alterações" : "Criar culto"}
-              </Button>
-            </div>
-          </form>
-
-          {/* List */}
-          {isLoading ? <p className="text-muted-foreground">Carregando...</p> : (
-            <div className="space-y-2">
-              {cultos.length === 0 && <p className="text-center text-muted-foreground py-4">Nenhum culto recorrente cadastrado.</p>}
-              {cultos.map(c => (
-                <div key={c.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <div className="font-medium">{c.titulo}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {DIAS_SEMANA_FULL[c.diaSemana]} · {LOCAIS_LABELS[c.local] ?? c.local}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="icon" onClick={() => openEdit(c)}><Pencil className="w-4 h-4" /></Button>
-                    <Button variant="destructive" size="icon" onClick={() => confirm(`Remover "${c.titulo}"?`) && deleteMutation.mutate(c.id)}><Trash2 className="w-4 h-4" /></Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 // ─── Day Detail Panel ─────────────────────────────────────────────────────────
@@ -369,8 +145,6 @@ export default function AgendaPage() {
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [showCultosDialog, setShowCultosDialog] = useState(false);
-  const isAdmin = useIsAdmin();
 
   const { data: agenda, isLoading } = useQuery<AgendaData>({
     queryKey: ["/api/agenda", selectedMonth, selectedYear],
@@ -436,17 +210,9 @@ export default function AgendaPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-        <div>
-          <h1 className="font-sans text-4xl font-semibold mb-2">Agenda da Igreja</h1>
-          <p className="text-lg text-muted-foreground">Calendário de escalas e eventos</p>
-        </div>
-        {isAdmin && (
-          <Button variant="outline" onClick={() => setShowCultosDialog(true)} className="flex items-center gap-2">
-            <RepeatIcon className="w-4 h-4" />
-            Cultos Recorrentes
-          </Button>
-        )}
+      <div>
+        <h1 className="font-sans text-4xl font-semibold mb-2">Agenda da Igreja</h1>
+        <p className="text-lg text-muted-foreground">Calendário de escalas e eventos</p>
       </div>
 
       {/* Month navigation */}
@@ -555,10 +321,6 @@ export default function AgendaPage() {
         </div>
       </div>
 
-      {/* Cultos Recorrentes Dialog (admin only) */}
-      {isAdmin && (
-        <CultosRecorrentesDialog open={showCultosDialog} onOpenChange={setShowCultosDialog} />
-      )}
     </div>
   );
 }
