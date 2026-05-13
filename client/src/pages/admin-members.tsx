@@ -26,9 +26,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Users, Plus, Search, Download, Trash2, Shield, Pencil, Upload, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
+import { Users, Plus, Search, Download, Trash2, Shield, Pencil, Upload, AlertCircle, CheckCircle, Loader2, X, Building2 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import type { User, InsertUser } from "@shared/schema";
+import type { User, InsertUser, Ministerio } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertUserSchema } from "@shared/schema";
@@ -97,7 +97,10 @@ export default function AdminMembers() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isMinisteriosOpen, setIsMinisteriosOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<User | null>(null);
+  const [novoMinisterioNome, setNovoMinisterioNome] = useState("");
+  const [novoMinisterioTipo, setNovoMinisterioTipo] = useState("outro");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterBairro, setFilterBairro] = useState("");
   const [filterProfissao, setFilterProfissao] = useState("");
@@ -112,6 +115,56 @@ export default function AdminMembers() {
 
   const { data: members = [], isLoading } = useQuery<User[]>({
     queryKey: ["/api/admin/members"],
+  });
+
+  const { data: todosMinisterios = [] } = useQuery<Ministerio[]>({
+    queryKey: ["/api/ministerios"],
+  });
+
+  const { data: ministeriosMembro = [], refetch: refetchMinisteriosMembro } = useQuery<Ministerio[]>({
+    queryKey: [`/api/admin/members/${editingMember?.id}/ministerios`],
+    enabled: !!editingMember,
+  });
+
+  const criarMinisterioMutation = useMutation({
+    mutationFn: async (data: { nome: string; tipo: string }) =>
+      await apiRequest("POST", "/api/admin/ministerios", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ministerios"] });
+      setNovoMinisterioNome("");
+      setNovoMinisterioTipo("outro");
+      toast({ title: "Ministério criado!" });
+    },
+    onError: (error: any) => toast({ title: "Erro ao criar ministério", description: error.message, variant: "destructive" }),
+  });
+
+  const deletarMinisterioMutation = useMutation({
+    mutationFn: async (id: number) => await apiRequest("DELETE", `/api/admin/ministerios/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ministerios"] });
+      toast({ title: "Ministério removido!" });
+    },
+    onError: (error: any) => toast({ title: "Erro ao remover ministério", description: error.message, variant: "destructive" }),
+  });
+
+  const adicionarMinisterioMembroMutation = useMutation({
+    mutationFn: async ({ userId, ministerioId }: { userId: number; ministerioId: number }) =>
+      await apiRequest("POST", `/api/admin/members/${userId}/ministerios`, { ministerioId }),
+    onSuccess: () => {
+      refetchMinisteriosMembro();
+      toast({ title: "Ministério adicionado ao membro!" });
+    },
+    onError: (error: any) => toast({ title: "Erro ao adicionar ministério", description: error.message, variant: "destructive" }),
+  });
+
+  const removerMinisterioMembroMutation = useMutation({
+    mutationFn: async ({ userId, ministerioId }: { userId: number; ministerioId: number }) =>
+      await apiRequest("DELETE", `/api/admin/members/${userId}/ministerios/${ministerioId}`),
+    onSuccess: () => {
+      refetchMinisteriosMembro();
+      toast({ title: "Ministério removido do membro!" });
+    },
+    onError: (error: any) => toast({ title: "Erro ao remover ministério", description: error.message, variant: "destructive" }),
   });
 
   const form = useForm<InsertUser>({
@@ -623,6 +676,71 @@ export default function AdminMembers() {
             Exportar CSV
           </Button>
 
+          {/* Dialog Gerenciar Ministérios */}
+          <Dialog open={isMinisteriosOpen} onOpenChange={setIsMinisteriosOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Building2 className="w-4 h-4 mr-2" />
+                Ministérios
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Gerenciar Ministérios</DialogTitle>
+                <DialogDescription>Crie e gerencie os ministérios da igreja</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Novo Ministério</Label>
+                  <Input
+                    placeholder="Nome do ministério"
+                    value={novoMinisterioNome}
+                    onChange={(e) => setNovoMinisterioNome(e.target.value)}
+                  />
+                  <Select value={novoMinisterioTipo} onValueChange={setNovoMinisterioTipo}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="louvor">Louvor</SelectItem>
+                      <SelectItem value="obreiros">Obreiros</SelectItem>
+                      <SelectItem value="outro">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    className="w-full"
+                    disabled={!novoMinisterioNome.trim() || criarMinisterioMutation.isPending}
+                    onClick={() => criarMinisterioMutation.mutate({ nome: novoMinisterioNome.trim(), tipo: novoMinisterioTipo })}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Criar Ministério
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <Label>Ministérios Cadastrados</Label>
+                  {todosMinisterios.length === 0 && (
+                    <p className="text-sm text-muted-foreground">Nenhum ministério cadastrado.</p>
+                  )}
+                  {todosMinisterios.map((m) => (
+                    <div key={m.id} className="flex items-center justify-between p-2 border rounded-md">
+                      <div>
+                        <span className="font-medium">{m.nome}</span>
+                        <Badge variant="outline" className="ml-2 text-xs">{m.tipo}</Badge>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deletarMinisterioMutation.mutate(m.id)}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           {/* Dialog de Importação */}
           <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
             <DialogTrigger asChild>
@@ -961,32 +1079,44 @@ export default function AdminMembers() {
 
                   <div className="space-y-2 md:col-span-2">
                     <Label>Ministérios</Label>
-                    <div className="flex items-center space-x-4">
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="edit-ministerioLouvor"
-                          {...editForm.register("ministerioLouvor")}
-                          className="w-4 h-4 rounded border-input"
-                          data-testid="checkbox-edit-louvor"
-                        />
-                        <Label htmlFor="edit-ministerioLouvor" className="font-normal cursor-pointer">
-                          Louvor
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="edit-ministerioObreiro"
-                          {...editForm.register("ministerioObreiro")}
-                          className="w-4 h-4 rounded border-input"
-                          data-testid="checkbox-edit-obreiro"
-                        />
-                        <Label htmlFor="edit-ministerioObreiro" className="font-normal cursor-pointer">
-                          Obreiro
-                        </Label>
-                      </div>
+                    <div className="flex flex-wrap gap-2 min-h-[32px] mb-2">
+                      {ministeriosMembro.map((m) => (
+                        <Badge key={m.id} variant="secondary" className="flex items-center gap-1 pr-1">
+                          {m.nome}
+                          <button
+                            type="button"
+                            onClick={() => editingMember && removerMinisterioMembroMutation.mutate({ userId: editingMember.id, ministerioId: m.id })}
+                            className="ml-1 rounded hover:text-destructive"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                      {ministeriosMembro.length === 0 && (
+                        <span className="text-muted-foreground text-sm">Nenhum ministério vinculado</span>
+                      )}
                     </div>
+                    <Select
+                      onValueChange={(val) => {
+                        if (editingMember) {
+                          adicionarMinisterioMembroMutation.mutate({ userId: editingMember.id, ministerioId: parseInt(val) });
+                        }
+                      }}
+                      value=""
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Adicionar ministério..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {todosMinisterios
+                          .filter((m) => !ministeriosMembro.some((mm) => mm.id === m.id))
+                          .map((m) => (
+                            <SelectItem key={m.id} value={String(m.id)}>
+                              {m.nome}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="space-y-2 md:col-span-2">

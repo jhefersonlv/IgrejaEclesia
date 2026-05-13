@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments, questions, lessonCompletions, courseEnrollments, visitors } from "@shared/schema";
-import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment, Question, InsertQuestion, LessonCompletion, InsertLessonCompletion, CourseEnrollment, Visitor, InsertVisitor } from "@shared/schema";
-import { eq, and, gte, sql } from "drizzle-orm";
+import { users, events, courses, lessons, materials, prayerRequests, schedules, scheduleAssignments, questions, lessonCompletions, courseEnrollments, visitors, ministerios, userMinisterios } from "@shared/schema";
+import type { User, InsertUser, Event, InsertEvent, Course, InsertCourse, Lesson, InsertLesson, Material, InsertMaterial, PrayerRequest, InsertPrayerRequest, Schedule, InsertSchedule, ScheduleAssignment, InsertScheduleAssignment, Question, InsertQuestion, LessonCompletion, InsertLessonCompletion, CourseEnrollment, Visitor, InsertVisitor, Ministerio, InsertMinisterio } from "@shared/schema";
+import { eq, and, gte, ne, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 // Definição da interface que será usada no retorno
@@ -143,6 +143,21 @@ export interface IStorage {
 
   // Aniversariantes
   getAniversariantesByMonth(mes: number): Promise<any[]>;
+
+  // Ministerios
+  getAllMinisterios(): Promise<Ministerio[]>;
+  createMinisterio(data: InsertMinisterio): Promise<Ministerio>;
+  deleteMinisterio(id: number): Promise<void>;
+  getUserMinisterios(userId: number): Promise<Ministerio[]>;
+  addUserToMinisterio(userId: number, ministerioId: number): Promise<void>;
+  removeUserFromMinisterio(userId: number, ministerioId: number): Promise<void>;
+  getUsersByMinisterioId(ministerioId: number): Promise<User[]>;
+
+  // Conflict check
+  checkScheduleConflict(userId: number, date: string, excludeAssignmentId?: number): Promise<{
+    hasConflict: boolean;
+    conflictInfo?: { scheduleId: number; tipo: string; data: string };
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -941,6 +956,80 @@ export class DatabaseStorage implements IStorage {
     return aniversariantes;
   }
 
+  // Ministerios
+  async getAllMinisterios(): Promise<Ministerio[]> {
+    return await db.select().from(ministerios).orderBy(ministerios.nome);
+  }
+
+  async createMinisterio(data: InsertMinisterio): Promise<Ministerio> {
+    const result = await db.insert(ministerios).values(data).returning();
+    return result[0];
+  }
+
+  async deleteMinisterio(id: number): Promise<void> {
+    await db.delete(ministerios).where(eq(ministerios.id, id));
+  }
+
+  async getUserMinisterios(userId: number): Promise<Ministerio[]> {
+    const rows = await db
+      .select({ ministerio: ministerios })
+      .from(userMinisterios)
+      .innerJoin(ministerios, eq(userMinisterios.ministerioId, ministerios.id))
+      .where(eq(userMinisterios.userId, userId));
+    return rows.map(r => r.ministerio);
+  }
+
+  async addUserToMinisterio(userId: number, ministerioId: number): Promise<void> {
+    await db.insert(userMinisterios).values({ userId, ministerioId }).onConflictDoNothing();
+  }
+
+  async removeUserFromMinisterio(userId: number, ministerioId: number): Promise<void> {
+    await db.delete(userMinisterios).where(
+      and(
+        eq(userMinisterios.userId, userId),
+        eq(userMinisterios.ministerioId, ministerioId)
+      )
+    );
+  }
+
+  async getUsersByMinisterioId(ministerioId: number): Promise<User[]> {
+    const rows = await db
+      .select({ user: users })
+      .from(userMinisterios)
+      .innerJoin(users, eq(userMinisterios.userId, users.id))
+      .where(eq(userMinisterios.ministerioId, ministerioId));
+    return rows.map(r => r.user);
+  }
+
+  async checkScheduleConflict(
+    userId: number,
+    date: string,
+    excludeAssignmentId?: number
+  ): Promise<{ hasConflict: boolean; conflictInfo?: { scheduleId: number; tipo: string; data: string } }> {
+    const conditions = [
+      eq(scheduleAssignments.userId, userId),
+      eq(schedules.data, date),
+    ];
+    if (excludeAssignmentId) {
+      conditions.push(ne(scheduleAssignments.id, excludeAssignmentId));
+    }
+
+    const conflicts = await db
+      .select({
+        scheduleId: schedules.id,
+        tipo: schedules.tipo,
+        data: schedules.data,
+      })
+      .from(scheduleAssignments)
+      .innerJoin(schedules, eq(scheduleAssignments.scheduleId, schedules.id))
+      .where(and(...conditions))
+      .limit(1);
+
+    if (conflicts.length > 0) {
+      return { hasConflict: true, conflictInfo: conflicts[0] };
+    }
+    return { hasConflict: false };
+  }
 }
 
 export const storage = new DatabaseStorage();

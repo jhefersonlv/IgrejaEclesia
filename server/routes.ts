@@ -1,6 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
-import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema, insertQuestionSchema, insertVisitorSchema } from "@shared/schema";
+import { insertUserSchema, insertEventSchema, insertCourseSchema, insertLessonSchema, insertMaterialSchema, insertPrayerRequestSchema, loginSchema, insertScheduleSchema, insertScheduleAssignmentSchema, insertQuestionSchema, insertVisitorSchema, insertMinisterioSchema, scheduleAssignments } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
@@ -669,6 +671,21 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   app.post("/api/assignments", authenticateToken, requireLeader, async (req: Request, res: Response) => {
     try {
       const assignmentData = insertScheduleAssignmentSchema.parse(req.body);
+
+      if (assignmentData.userId) {
+        const schedule = await storage.getScheduleById(assignmentData.scheduleId);
+        if (schedule) {
+          const conflict = await storage.checkScheduleConflict(assignmentData.userId, schedule.data);
+          if (conflict.hasConflict && conflict.conflictInfo) {
+            const tipoLabel = conflict.conflictInfo.tipo === "louvor" ? "Louvor" : "Obreiros";
+            return res.status(409).json({
+              message: `Este membro já está escalado no Ministério de ${tipoLabel} nesta data (${schedule.data}). Verifique os conflitos antes de escalar.`,
+              conflictInfo: conflict.conflictInfo,
+            });
+          }
+        }
+      }
+
       const newAssignment = await storage.createAssignment(assignmentData);
       res.status(201).json(newAssignment);
     } catch (error) {
@@ -685,6 +702,24 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     try {
       const id = parseInt(req.params.id);
       const { userId } = req.body;
+
+      if (userId) {
+        const rows = await db.select().from(scheduleAssignments).where(eq(scheduleAssignments.id, id)).limit(1);
+        if (rows.length > 0) {
+          const schedule = await storage.getScheduleById(rows[0].scheduleId);
+          if (schedule) {
+            const conflict = await storage.checkScheduleConflict(userId, schedule.data, id);
+            if (conflict.hasConflict && conflict.conflictInfo) {
+              const tipoLabel = conflict.conflictInfo.tipo === "louvor" ? "Louvor" : "Obreiros";
+              return res.status(409).json({
+                message: `Este membro já está escalado no Ministério de ${tipoLabel} nesta data (${schedule.data}). Verifique os conflitos antes de escalar.`,
+                conflictInfo: conflict.conflictInfo,
+              });
+            }
+          }
+        }
+      }
+
       const updatedAssignment = await storage.updateAssignment(id, userId);
       res.json(updatedAssignment);
     } catch (error) {
@@ -961,6 +996,74 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     } catch (error) {
       console.error("Delete visitor error:", error);
       res.status(500).json({ message: "Erro ao deletar visitante" });
+    }
+  });
+
+  // ── Ministérios ──────────────────────────────────────────────────────────────
+
+  app.get("/api/ministerios", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const lista = await storage.getAllMinisterios();
+      res.json(lista);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar ministérios" });
+    }
+  });
+
+  app.post("/api/admin/ministerios", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const data = insertMinisterioSchema.parse(req.body);
+      const novo = await storage.createMinisterio(data);
+      res.status(201).json(novo);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      res.status(500).json({ message: "Erro ao criar ministério" });
+    }
+  });
+
+  app.delete("/api/admin/ministerios/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteMinisterio(id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao deletar ministério" });
+    }
+  });
+
+  // Ministérios de um membro
+  app.get("/api/admin/members/:id/ministerios", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const lista = await storage.getUserMinisterios(userId);
+      res.json(lista);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar ministérios do membro" });
+    }
+  });
+
+  app.post("/api/admin/members/:id/ministerios", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { ministerioId } = req.body;
+      if (!ministerioId) return res.status(400).json({ message: "ministerioId é obrigatório" });
+      await storage.addUserToMinisterio(userId, ministerioId);
+      res.status(201).json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao vincular ministério" });
+    }
+  });
+
+  app.delete("/api/admin/members/:id/ministerios/:ministerioId", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const ministerioId = parseInt(req.params.ministerioId);
+      await storage.removeUserFromMinisterio(userId, ministerioId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao desvincular ministério" });
     }
   });
 }

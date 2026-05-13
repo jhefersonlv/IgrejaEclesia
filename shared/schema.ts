@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, boolean, date, integer, timestamp, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, boolean, date, integer, timestamp, primaryKey, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -21,6 +21,25 @@ export const users = pgTable("users", {
   fotoUrl: text("foto_url"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// Ministerios table
+export const ministerios = pgTable("ministerios", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  nome: text("nome").notNull(),
+  descricao: text("descricao"),
+  tipo: text("tipo").notNull(), // louvor, obreiros, outro — mapeia para schedules.tipo
+  ativo: boolean("ativo").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// User-ministerio junction table
+export const userMinisterios = pgTable("user_ministerios", {
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  ministerioId: integer("ministerio_id").notNull().references(() => ministerios.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.userId, table.ministerioId] }),
+}));
 
 // Events table
 export const events = pgTable("events", {
@@ -157,6 +176,16 @@ export const visitors = pgTable("visitors", {
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   enrollments: many(courseEnrollments),
+  ministerios: many(userMinisterios),
+}));
+
+export const ministeriosRelations = relations(ministerios, ({ many }) => ({
+  membros: many(userMinisterios),
+}));
+
+export const userMinisteriosRelations = relations(userMinisterios, ({ one }) => ({
+  user: one(users, { fields: [userMinisterios.userId], references: [users.id] }),
+  ministerio: one(ministerios, { fields: [userMinisterios.ministerioId], references: [ministerios.id] }),
 }));
 
 export const coursesRelations = relations(courses, ({ many }) => ({
@@ -293,6 +322,13 @@ export const loginSchema = z.object({
   senha: z.string().min(1, "Senha é obrigatória"),
 });
 
+export const insertMinisterioSchema = z.object({
+  nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
+  descricao: z.string().optional(),
+  tipo: z.string().min(1, "Tipo é obrigatório"),
+  ativo: z.boolean().optional(),
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -321,3 +357,5 @@ export type InsertLessonCompletion = z.infer<typeof insertLessonCompletionSchema
 export type Visitor = typeof visitors.$inferSelect;
 export type InsertVisitor = z.infer<typeof insertVisitorSchema>;
 export type LoginCredentials = z.infer<typeof loginSchema>;
+export type Ministerio = typeof ministerios.$inferSelect;
+export type InsertMinisterio = z.infer<typeof insertMinisterioSchema>;
