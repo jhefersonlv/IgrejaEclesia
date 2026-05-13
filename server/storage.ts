@@ -1137,18 +1137,29 @@ export class DatabaseStorage implements IStorage {
 
   async addUserToMinisterio(userId: number, ministerioId: number, isLider = false): Promise<void> {
     await db.insert(userMinisterios).values({ userId, ministerioId, isLider }).onConflictDoNothing();
+    if (isLider) await this._syncUserIsLider(userId);
   }
 
   async removeUserFromMinisterio(userId: number, ministerioId: number): Promise<void> {
     await db.delete(userMinisterios).where(
       and(eq(userMinisterios.userId, userId), eq(userMinisterios.ministerioId, ministerioId))
     );
+    await this._syncUserIsLider(userId);
   }
 
   async setUserMinisterioLider(userId: number, ministerioId: number, isLider: boolean): Promise<void> {
     await db.update(userMinisterios)
       .set({ isLider })
       .where(and(eq(userMinisterios.userId, userId), eq(userMinisterios.ministerioId, ministerioId)));
+    // Sincroniza user.isLider: true se lidera qualquer ministério
+    await this._syncUserIsLider(userId);
+  }
+
+  private async _syncUserIsLider(userId: number): Promise<void> {
+    const anyLider = await db.select().from(userMinisterios)
+      .where(and(eq(userMinisterios.userId, userId), eq(userMinisterios.isLider, true)))
+      .limit(1);
+    await db.update(users).set({ isLider: anyLider.length > 0 }).where(eq(users.id, userId));
   }
 
   async getUsersByMinisterioId(ministerioId: number): Promise<User[]> {
@@ -1415,7 +1426,7 @@ export class DatabaseStorage implements IStorage {
       cargos.push(`ministerio:${m.nome}`);
       if (m.isLider) isAnyLider = true;
     }
-    if (isAnyLider || user.isLider) cargos.push("lider");
+    if (isAnyLider) cargos.push("lider");
 
     return cargos;
   }

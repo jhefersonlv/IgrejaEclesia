@@ -51,7 +51,6 @@ const editUserSchema = z.object({
   isAdmin: z.boolean().optional(),
   ministerioLouvor: z.boolean().optional(),
   ministerioObreiro: z.boolean().optional(),
-  isLider: z.boolean().optional(),
   fotoUrl: z.string().optional(),
 });
 
@@ -208,7 +207,6 @@ export default function AdminMembers() {
       isAdmin: false,
       ministerioLouvor: false,
       ministerioObreiro: false,
-      isLider: false,
       fotoUrl: "",
     },
   });
@@ -582,7 +580,6 @@ export default function AdminMembers() {
       isAdmin: member.isAdmin,
       ministerioLouvor: member.ministerioLouvor || false,
       ministerioObreiro: member.ministerioObreiro || false,
-      isLider: member.isLider || false,
       fotoUrl: member.fotoUrl || "",
     });
     setIsEditOpen(true);
@@ -1097,31 +1094,17 @@ export default function AdminMembers() {
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
-                    <div className="flex items-center space-x-4">
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="edit-isAdmin"
-                          {...editForm.register("isAdmin")}
-                          className="w-4 h-4 rounded border-input"
-                          data-testid="checkbox-edit-admin"
-                        />
-                        <Label htmlFor="edit-isAdmin" className="font-normal cursor-pointer">
-                          Administrador
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="edit-isLider"
-                          {...editForm.register("isLider")}
-                          className="w-4 h-4 rounded border-input"
-                          data-testid="checkbox-edit-leader"
-                        />
-                        <Label htmlFor="edit-isLider" className="font-normal cursor-pointer">
-                          Líder
-                        </Label>
-                      </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="edit-isAdmin"
+                        {...editForm.register("isAdmin")}
+                        className="w-4 h-4 rounded border-input"
+                        data-testid="checkbox-edit-admin"
+                      />
+                      <Label htmlFor="edit-isAdmin" className="font-normal cursor-pointer">
+                        Administrador (acesso total ao sistema)
+                      </Label>
                     </div>
                   </div>
                 </div>

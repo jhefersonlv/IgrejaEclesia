@@ -30,21 +30,32 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     const token = localStorage.getItem("token");
     const userData = localStorage.getItem("user");
     if (!token || !userData) { setLocation("/login"); return; }
-    const parsed = JSON.parse(userData);
-    // Permite admin OU líder (isLider = líder de ministério via sistema antigo ou novo)
-    if (!parsed.isAdmin && !parsed.isLider) { setLocation("/membro"); return; }
-    setUser(parsed);
-    setChecked(true);
+    setUser(JSON.parse(userData));
   }, [setLocation]);
 
-  // Busca quais módulos o usuário pode acessar
-  const { data: modulosData } = useQuery<{ modulos: string[] }>({
-    queryKey: ["/api/meus-modulos"],
-    enabled: checked,
+  // Verifica cargos frescos do servidor (não depende do localStorage)
+  const { data: cargosData, isLoading: cargosLoading } = useQuery<{ cargos: string[] }>({
+    queryKey: ["/api/meus-cargos"],
+    enabled: !!user,
   });
 
+  const { data: modulosData } = useQuery<{ modulos: string[] }>({
+    queryKey: ["/api/meus-modulos"],
+    enabled: !!user,
+  });
+
+  useEffect(() => {
+    if (!user || cargosLoading || !cargosData) return;
+    const cargos = cargosData.cargos;
+    if (!cargos.includes("admin") && !cargos.includes("lider")) {
+      setLocation("/membro");
+      return;
+    }
+    setChecked(true);
+  }, [user, cargosData, cargosLoading, setLocation]);
+
   const meusModulos = modulosData?.modulos ?? [];
-  const isAdmin = user?.isAdmin ?? false;
+  const isAdmin = (cargosData?.cargos ?? []).includes("admin");
 
   const handleLogout = () => {
     localStorage.removeItem("token");
