@@ -11,7 +11,7 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { BookOpen, Video, GraduationCap, User, LogOut, CalendarDays, Heart, Shield, Home, Users, Music, Users2, CalendarRange } from "lucide-react";
+import { BookOpen, Video, GraduationCap, User, LogOut, Heart, Shield, Home, Users, Music, Users2, CalendarRange } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 
@@ -151,21 +151,6 @@ export function AppSidebar({ userNome, isLider, isAdmin, isObreiro, isLouvor, fo
                         <span>Escalas de Obreiros</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-                  )}
-                  {isLider && (
-                    <>
-                      <SidebarSeparator className="my-2" />
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          onClick={() => setLocation("/lider/escalas")}
-                          isActive={location === "/lider/escalas"}
-                          data-testid="link-gerenciar-escalas"
-                        >
-                          <CalendarDays className="w-4 h-4" />
-                          <span>Gerenciar Escalas</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    </>
                   )}
                 </SidebarMenu>
               </SidebarGroupContent>

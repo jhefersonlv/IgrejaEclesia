@@ -151,6 +151,11 @@ function Router() {
           <AdminVisitors />
         </AdminLayout>
       </Route>
+      <Route path="/admin/escalas">
+        <AdminLayout>
+          <LeaderSchedules />
+        </AdminLayout>
+      </Route>
       <Route path="/admin/permissions">
         <AdminLayout>
           <AdminPermissions />

@@ -3,7 +3,7 @@ import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { Church, Users, GraduationCap, Calendar, BookOpen, LogOut, Home, Heart, BarChart3, ShieldCheck } from "lucide-react";
+import { Church, Users, GraduationCap, Calendar, BookOpen, LogOut, Home, Heart, BarChart3, ShieldCheck, CalendarDays } from "lucide-react";
 import type { User } from "@shared/schema";
 
 interface AdminLayoutProps {
@@ -17,6 +17,7 @@ const NAV_MODULOS = [
   { chave: "analytics",  path: "/admin/analytics",   icon: BarChart3,    label: "Analytics" },
   { chave: "cursos",     path: "/admin/courses",     icon: GraduationCap,label: "Cursos" },
   { chave: "eventos",    path: "/admin/events",      icon: Calendar,     label: "Eventos" },
+  { chave: "escalas",   path: "/admin/escalas",     icon: CalendarDays, label: "Escalas" },
   { chave: "materiais",  path: "/admin/materials",   icon: BookOpen,     label: "Materiais" },
   { chave: "oracoes",    path: "/admin/prayers",     icon: Heart,        label: "Orações" },
 ];
