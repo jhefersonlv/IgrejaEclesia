@@ -173,7 +173,7 @@ export function AppSidebar({ userNome, isLider, isAdmin, isObreiro, isLouvor, fo
           </>
         )}
 
-        {isAdmin && (
+        {(isAdmin || isLider) && (
           <>
             <SidebarSeparator />
             <SidebarGroup>
@@ -187,7 +187,7 @@ export function AppSidebar({ userNome, isLider, isAdmin, isObreiro, isLouvor, fo
                       data-testid="link-admin"
                     >
                       <Shield className="w-4 h-4" />
-                      <span>Painel Admin</span>
+                      <span>{isAdmin ? "Painel Admin" : "Painel do Líder"}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </SidebarMenu>
