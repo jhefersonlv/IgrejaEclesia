@@ -40,6 +40,20 @@ export default function AdminEvents() {
   const { data: events = [], isLoading } = useQuery<Event[]>({ queryKey: ["/api/admin/events"] });
   const { data: ministerios = [] } = useQuery<Ministerio[]>({ queryKey: ["/api/ministerios"] });
 
+  // Usuário atual + seus ministérios para verificar o que pode editar
+  const { data: currentUser } = useQuery<any>({ queryKey: ["/api/auth/me"] });
+  const { data: meusMinisterios = [] } = useQuery<{ id: number }[]>({
+    queryKey: ["/api/ministerios/meus-liderancas"],
+  });
+  const meusMinisterioIds = meusMinisterios.map((m: any) => m.id);
+
+  const podeEditar = (event: Event) => {
+    if (currentUser?.isAdmin) return true;
+    if ((event as any).criadoPorId === currentUser?.id) return true;
+    if (event.ministerioId && meusMinisterioIds.includes(event.ministerioId)) return true;
+    return false;
+  };
+
   // Cultos recorrentes
   interface CultoRecorrente { id: number; titulo: string; descricao: string | null; local: string; diaSemana: number; dataInicio: string; dataFim: string | null; isPublico: boolean }
   interface CultoFormData { titulo: string; descricao: string; local: "eclesia"|"missoes-vidas"|"externo"; diaSemana: string; dataInicio: string; dataFim: string; isPublico: boolean; escalaMinisterioIds: number[] }
@@ -417,13 +431,19 @@ export default function AdminEvents() {
               <CardContent className="space-y-3">
                 <p className="text-sm text-muted-foreground line-clamp-2">{event.descricao}</p>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => openEdit(event)}>
-                    <Pencil className="w-3 h-3 mr-1" />Editar
-                  </Button>
-                  <Button variant="destructive" size="sm" className="flex-1"
-                    onClick={() => confirm(`Remover "${event.titulo}"?`) && deleteMutation.mutate(event.id)}>
-                    <Trash2 className="w-3 h-3 mr-1" />Remover
-                  </Button>
+                  {podeEditar(event) ? (
+                    <>
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => openEdit(event)}>
+                        <Pencil className="w-3 h-3 mr-1" />Editar
+                      </Button>
+                      <Button variant="destructive" size="sm" className="flex-1"
+                        onClick={() => confirm(`Remover "${event.titulo}"?`) && deleteMutation.mutate(event.id)}>
+                        <Trash2 className="w-3 h-3 mr-1" />Remover
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic px-1">Somente visualização</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

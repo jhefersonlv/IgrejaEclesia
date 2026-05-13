@@ -433,7 +433,8 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
           conflictEvent: conflict.conflictEvent,
         });
       }
-      const newEvent = await storage.createEvent(eventData);
+      const user = (req as any).user;
+      const newEvent = await storage.createEvent({ ...eventData, criadoPorId: user.id });
       res.status(201).json(newEvent);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -445,7 +446,17 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
 
   app.patch("/api/admin/events/:id", authenticateToken, requireModulo("eventos"), async (req: Request, res: Response) => {
     try {
+      const user = (req as any).user;
       const id = parseInt(req.params.id);
+
+      if (!user.isAdmin) {
+        const evento = await storage.getEventById(id);
+        if (!evento) return res.status(404).json({ message: "Evento não encontrado" });
+        const ministerioIds = (await storage.getUserMinisterios(user.id)).map((m: any) => m.id);
+        const pode = evento.criadoPorId === user.id || (evento.ministerioId && ministerioIds.includes(evento.ministerioId));
+        if (!pode) return res.status(403).json({ message: "Você só pode editar eventos que criou ou do seu ministério." });
+      }
+
       const updateData = insertEventSchema.partial().parse(req.body);
       if (updateData.local && updateData.data) {
         const conflict = await storage.checkEventLocationConflict(updateData.local, updateData.data, id);
@@ -468,7 +479,17 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
 
   app.delete("/api/admin/events/:id", authenticateToken, requireModulo("eventos"), async (req: Request, res: Response) => {
     try {
+      const user = (req as any).user;
       const id = parseInt(req.params.id);
+
+      if (!user.isAdmin) {
+        const evento = await storage.getEventById(id);
+        if (!evento) return res.status(404).json({ message: "Evento não encontrado" });
+        const ministerioIds = (await storage.getUserMinisterios(user.id)).map((m: any) => m.id);
+        const pode = evento.criadoPorId === user.id || (evento.ministerioId && ministerioIds.includes(evento.ministerioId));
+        if (!pode) return res.status(403).json({ message: "Você só pode remover eventos que criou ou do seu ministério." });
+      }
+
       await storage.deleteEvent(id);
       res.status(204).send();
     } catch (error) {
@@ -1352,6 +1373,15 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
       const userId = (req as any).userId;
       const cargos = await storage.getUserCargos(userId);
       res.json({ cargos });
+    } catch { res.status(500).json({ message: "Erro" }); }
+  });
+
+  // Módulos que o usuário pode acessar
+  app.get("/api/meus-modulos", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const chaves = await storage.getModulosForUser(userId);
+      res.json({ modulos: chaves });
     } catch { res.status(500).json({ message: "Erro" }); }
   });
 }

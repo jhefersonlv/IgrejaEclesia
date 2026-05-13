@@ -58,6 +58,7 @@ export interface IStorage {
   // Events
   getAllEvents(): Promise<Event[]>;
   getPublicEvents(): Promise<Event[]>;
+  getEventById(id: number): Promise<Event | null>;
   createEvent(data: InsertEvent): Promise<Event>;
   updateEvent(id: number, data: Partial<InsertEvent>): Promise<Event>;
   deleteEvent(id: number): Promise<void>;
@@ -194,6 +195,7 @@ export interface IStorage {
   createMultipleScheduleRequests(requests: InsertScheduleRequest[]): Promise<ScheduleRequest[]>;
 
   // Módulos e Permissões
+  getModulosForUser(userId: number): Promise<string[]>;
   getAllModulos(): Promise<Modulo[]>;
   getModuloByChave(chave: string): Promise<Modulo | null>;
   createModulo(data: InsertModulo): Promise<Modulo>;
@@ -342,6 +344,11 @@ export class DatabaseStorage implements IStorage {
 
   async getPublicEvents(): Promise<Event[]> {
     return await db.select().from(events).where(eq(events.isPublico, true)).orderBy(events.data);
+  }
+
+  async getEventById(id: number): Promise<Event | null> {
+    const r = await db.select().from(events).where(eq(events.id, id)).limit(1);
+    return r[0] || null;
   }
 
   async createEvent(data: InsertEvent): Promise<Event> {
@@ -1319,6 +1326,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ── Módulos e Permissões ────────────────────────────────────────────────────
+
+  async getModulosForUser(userId: number): Promise<string[]> {
+    const user = await this.getUserById(userId);
+    if (!user) return [];
+    if (user.isAdmin) {
+      const all = await db.select({ chave: modulos.chave }).from(modulos).where(eq(modulos.ativo, true));
+      return all.map(m => m.chave);
+    }
+    const userCargos = await this.getUserCargos(userId);
+    const allModulos = await db.select().from(modulos).where(eq(modulos.ativo, true));
+    const acessiveis: string[] = [];
+    for (const modulo of allModulos) {
+      const perms = await this.getPermissoesByModulo(modulo.id);
+      if (perms.some(p => userCargos.includes(p.cargoChave))) {
+        acessiveis.push(modulo.chave);
+      }
+    }
+    return acessiveis;
+  }
 
   async getAllModulos(): Promise<Modulo[]> {
     return await db.select().from(modulos).orderBy(modulos.nome);

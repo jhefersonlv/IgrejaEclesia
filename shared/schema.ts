@@ -73,6 +73,7 @@ export const events = pgTable("events", {
   imagem: text("imagem"),
   ministerioId: integer("ministerio_id").references(() => ministerios.id, { onDelete: "set null" }),
   isPublico: boolean("is_publico").notNull().default(true),
+  criadoPorId: integer("criado_por_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
