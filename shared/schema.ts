@@ -36,6 +36,7 @@ export const ministerios = pgTable("ministerios", {
 export const userMinisterios = pgTable("user_ministerios", {
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   ministerioId: integer("ministerio_id").notNull().references(() => ministerios.id, { onDelete: "cascade" }),
+  isLider: boolean("is_lider").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   pk: primaryKey({ columns: [table.userId, table.ministerioId] }),
@@ -110,7 +111,8 @@ export const schedules = pgTable("schedules", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   mes: integer("mes").notNull(), // 1-12
   ano: integer("ano").notNull(), // 2025, 2026, etc
-  tipo: text("tipo").notNull(), // louvor, obreiros
+  tipo: text("tipo").notNull().default("outro"), // louvor, obreiros, outro
+  ministerioId: integer("ministerio_id").references(() => ministerios.id, { onDelete: "set null" }),
   data: date("data").notNull(), // data específica do culto
   observacoes: text("observacoes"),
   louvores: text("louvores"), // JSON string com lista de louvores
@@ -272,8 +274,9 @@ export const insertNotificationSchema = z.object({
 });
 
 export const insertScheduleSchema = z.object({
-  tipo: z.string(),
-  data: z.string().min(1, "A data é obrigatória"), // Garante que a data não seja vazia
+  ministerioId: z.number({ required_error: "Selecione um ministério" }),
+  tipo: z.string().optional(), // derivado do ministério pelo backend
+  data: z.string().min(1, "A data é obrigatória"),
   observacoes: z.string().optional(),
   louvores: z.string().optional().nullable(),
 });

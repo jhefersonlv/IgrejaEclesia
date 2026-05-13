@@ -580,12 +580,11 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  // Schedule Routes (for leaders and members)
-  const requireLeader = (req: AuthRequest, res: Response, next: NextFunction) => {
-    if (!req.user?.isLider && !req.user?.isAdmin) {
-      return res.status(403).json({ message: "Acesso negado. Apenas líderes podem acessar." });
-    }
-    next();
+  // Helper: verifica se usuário pode gerenciar escala de um ministério
+  const canManageSchedule = async (user: any, ministerioId: number | null | undefined): Promise<boolean> => {
+    if (user.isAdmin) return true;
+    if (!ministerioId) return false;
+    return storage.isUserLeaderOfMinisterio(user.id, ministerioId);
   };
 
   // Get schedules (members can view) - Rota Otimizada
@@ -627,10 +626,14 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  // Create schedule (leaders only)
-  app.post("/api/schedules", authenticateToken, requireLeader, async (req: Request, res: Response) => {
+  // Create schedule (ministry leaders only)
+  app.post("/api/schedules", authenticateToken, async (req: Request, res: Response) => {
     try {
+      const user = (req as any).user;
       const scheduleData = insertScheduleSchema.parse(req.body);
+      if (!await canManageSchedule(user, scheduleData.ministerioId)) {
+        return res.status(403).json({ message: "Você não é líder deste ministério." });
+      }
       const newSchedule = await storage.createSchedule(scheduleData);
       res.status(201).json(newSchedule);
     } catch (error) {
@@ -642,12 +645,17 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  // Update schedule (leaders only)
-  app.patch("/api/schedules/:id", authenticateToken, requireLeader, async (req: Request, res: Response) => {
+  // Update schedule (ministry leaders only)
+  app.patch("/api/schedules/:id", authenticateToken, async (req: Request, res: Response) => {
     try {
+      const user = (req as any).user;
       const id = parseInt(req.params.id);
-      const updateData = req.body;
-      const updatedSchedule = await storage.updateSchedule(id, updateData);
+      const schedule = await storage.getScheduleById(id);
+      if (!schedule) return res.status(404).json({ message: "Escala não encontrada" });
+      if (!await canManageSchedule(user, schedule.ministerioId)) {
+        return res.status(403).json({ message: "Você não é líder deste ministério." });
+      }
+      const updatedSchedule = await storage.updateSchedule(id, req.body);
       res.json(updatedSchedule);
     } catch (error) {
       console.error("Update schedule error:", error);
@@ -655,10 +663,16 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
     }
   });
 
-  // Delete schedule (leaders only)
-  app.delete("/api/schedules/:id", authenticateToken, requireLeader, async (req: Request, res: Response) => {
+  // Delete schedule (ministry leaders only)
+  app.delete("/api/schedules/:id", authenticateToken, async (req: Request, res: Response) => {
     try {
+      const user = (req as any).user;
       const id = parseInt(req.params.id);
+      const schedule = await storage.getScheduleById(id);
+      if (!schedule) return res.status(404).json({ message: "Escala não encontrada" });
+      if (!await canManageSchedule(user, schedule.ministerioId)) {
+        return res.status(403).json({ message: "Você não é líder deste ministério." });
+      }
       await storage.deleteSchedule(id);
       res.status(204).send();
     } catch (error) {
@@ -668,7 +682,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   });
 
   // Create assignment (leaders only)
-  app.post("/api/assignments", authenticateToken, requireLeader, async (req: Request, res: Response) => {
+  app.post("/api/assignments", authenticateToken, async (req: Request, res: Response) => {
     try {
       const assignmentData = insertScheduleAssignmentSchema.parse(req.body);
 
@@ -686,6 +700,12 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
         }
       }
 
+      // Verifica se usuário pode gerenciar a escala
+      const scheduleForAuth = await storage.getScheduleById(assignmentData.scheduleId);
+      if (scheduleForAuth && !await canManageSchedule((req as any).user, scheduleForAuth.ministerioId)) {
+        return res.status(403).json({ message: "Você não é líder deste ministério." });
+      }
+
       const newAssignment = await storage.createAssignment(assignmentData);
       res.status(201).json(newAssignment);
     } catch (error) {
@@ -698,7 +718,7 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   });
 
   // Update assignment (leaders only)
-  app.patch("/api/assignments/:id", authenticateToken, requireLeader, async (req: Request, res: Response) => {
+  app.patch("/api/assignments/:id", authenticateToken, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       const { userId } = req.body;
@@ -1000,6 +1020,43 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   });
 
   // ── Ministérios ──────────────────────────────────────────────────────────────
+
+  // Ministérios que o usuário lidera (ou todos, se admin)
+  app.get("/api/ministerios/meus-liderancas", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      if (user.isAdmin) {
+        return res.json(await storage.getAllMinisterios());
+      }
+      res.json(await storage.getUserLeaderMinisterios(user.id));
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar ministérios" });
+    }
+  });
+
+  // Membros de um ministério específico
+  app.get("/api/ministerios/:id/membros", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const ministerioId = parseInt(req.params.id);
+      const membros = await storage.getUsersByMinisterioId(ministerioId);
+      res.json(membros);
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao buscar membros do ministério" });
+    }
+  });
+
+  // Toggle líder de um membro em um ministério (admin only)
+  app.patch("/api/admin/members/:id/ministerios/:ministerioId/lider", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const ministerioId = parseInt(req.params.ministerioId);
+      const { isLider } = req.body;
+      await storage.setUserMinisterioLider(userId, ministerioId, !!isLider);
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ message: "Erro ao atualizar liderança" });
+    }
+  });
 
   app.get("/api/ministerios", authenticateToken, async (req: Request, res: Response) => {
     try {

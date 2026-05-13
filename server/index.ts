@@ -2,6 +2,7 @@ import { createServer } from "http";
 import { db } from "./db";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { storage } from "./storage";
 import { setupVite, serveStatic, log, useViteCatchall } from "./vite";
 import session from "express-session";
 import cors from "cors";
@@ -83,6 +84,7 @@ app.use((req, res, next) => {
     }
   });
 
+  await storage.seedDefaultMinisterios();
   registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

@@ -121,7 +121,7 @@ export default function AdminMembers() {
     queryKey: ["/api/ministerios"],
   });
 
-  const { data: ministeriosMembro = [], refetch: refetchMinisteriosMembro } = useQuery<Ministerio[]>({
+  const { data: ministeriosMembro = [], refetch: refetchMinisteriosMembro } = useQuery<(Ministerio & { isLider: boolean })[]>({
     queryKey: [`/api/admin/members/${editingMember?.id}/ministerios`],
     enabled: !!editingMember,
   });
@@ -165,6 +165,16 @@ export default function AdminMembers() {
       toast({ title: "Ministério removido do membro!" });
     },
     onError: (error: any) => toast({ title: "Erro ao remover ministério", description: error.message, variant: "destructive" }),
+  });
+
+  const toggleLiderMinisterioMutation = useMutation({
+    mutationFn: async ({ userId, ministerioId, isLider }: { userId: number; ministerioId: number; isLider: boolean }) =>
+      await apiRequest("PATCH", `/api/admin/members/${userId}/ministerios/${ministerioId}/lider`, { isLider }),
+    onSuccess: () => {
+      refetchMinisteriosMembro();
+      toast({ title: "Liderança atualizada!" });
+    },
+    onError: (error: any) => toast({ title: "Erro ao atualizar liderança", description: error.message, variant: "destructive" }),
   });
 
   const form = useForm<InsertUser>({
@@ -1081,12 +1091,21 @@ export default function AdminMembers() {
                     <Label>Ministérios</Label>
                     <div className="flex flex-wrap gap-2 min-h-[32px] mb-2">
                       {ministeriosMembro.map((m) => (
-                        <Badge key={m.id} variant="secondary" className="flex items-center gap-1 pr-1">
+                        <Badge key={m.id} variant={m.isLider ? "default" : "secondary"} className="flex items-center gap-1 pr-1">
+                          {m.isLider && <Shield className="w-3 h-3" />}
                           {m.nome}
                           <button
                             type="button"
+                            title={m.isLider ? "Remover liderança" : "Tornar líder"}
+                            onClick={() => editingMember && toggleLiderMinisterioMutation.mutate({ userId: editingMember.id, ministerioId: m.id, isLider: !m.isLider })}
+                            className="ml-1 rounded hover:opacity-70"
+                          >
+                            <Shield className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => editingMember && removerMinisterioMembroMutation.mutate({ userId: editingMember.id, ministerioId: m.id })}
-                            className="ml-1 rounded hover:text-destructive"
+                            className="rounded hover:text-destructive"
                           >
                             <X className="w-3 h-3" />
                           </button>

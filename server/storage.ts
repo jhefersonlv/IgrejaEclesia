@@ -146,12 +146,17 @@ export interface IStorage {
 
   // Ministerios
   getAllMinisterios(): Promise<Ministerio[]>;
+  getMinisterioById(id: number): Promise<Ministerio | null>;
   createMinisterio(data: InsertMinisterio): Promise<Ministerio>;
   deleteMinisterio(id: number): Promise<void>;
-  getUserMinisterios(userId: number): Promise<Ministerio[]>;
-  addUserToMinisterio(userId: number, ministerioId: number): Promise<void>;
+  seedDefaultMinisterios(): Promise<void>;
+  getUserMinisterios(userId: number): Promise<(Ministerio & { isLider: boolean })[]>;
+  addUserToMinisterio(userId: number, ministerioId: number, isLider?: boolean): Promise<void>;
   removeUserFromMinisterio(userId: number, ministerioId: number): Promise<void>;
+  setUserMinisterioLider(userId: number, ministerioId: number, isLider: boolean): Promise<void>;
   getUsersByMinisterioId(ministerioId: number): Promise<User[]>;
+  getUserLeaderMinisterios(userId: number): Promise<Ministerio[]>;
+  isUserLeaderOfMinisterio(userId: number, ministerioId: number): Promise<boolean>;
 
   // Conflict check
   checkScheduleConflict(userId: number, date: string, excludeAssignmentId?: number): Promise<{
@@ -587,13 +592,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSchedule(data: InsertSchedule): Promise<Schedule> {
-    // Parse a data corretamente sem conversão de timezone
-    // Esperamos uma string no formato "YYYY-MM-DD"
     const [year, month] = data.data.split('-').map(Number);
-    const mes = month;
-    const ano = year;
 
-    const result = await db.insert(schedules).values({ ...data, mes, ano }).returning();
+    let tipo = data.tipo || "outro";
+    if (data.ministerioId) {
+      const ministerio = await this.getMinisterioById(data.ministerioId);
+      if (ministerio) tipo = ministerio.tipo;
+    }
+
+    const result = await db.insert(schedules).values({
+      ...data,
+      tipo,
+      mes: month,
+      ano: year,
+    }).returning();
     return result[0];
   }
 
@@ -961,6 +973,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(ministerios).orderBy(ministerios.nome);
   }
 
+  async getMinisterioById(id: number): Promise<Ministerio | null> {
+    const result = await db.select().from(ministerios).where(eq(ministerios.id, id)).limit(1);
+    return result[0] || null;
+  }
+
   async createMinisterio(data: InsertMinisterio): Promise<Ministerio> {
     const result = await db.insert(ministerios).values(data).returning();
     return result[0];
@@ -970,26 +987,59 @@ export class DatabaseStorage implements IStorage {
     await db.delete(ministerios).where(eq(ministerios.id, id));
   }
 
-  async getUserMinisterios(userId: number): Promise<Ministerio[]> {
+  async seedDefaultMinisterios(): Promise<void> {
+    const existing = await db.select().from(ministerios).limit(1);
+    if (existing.length > 0) return;
+
+    const [louvor, obreiros] = await db.insert(ministerios).values([
+      { nome: "Ministério de Louvor", tipo: "louvor", descricao: "Equipe de música e adoração" },
+      { nome: "Ministério de Obreiros", tipo: "obreiros", descricao: "Equipe de recepção e serviço" },
+    ]).returning();
+
+    // Vincula escalas existentes ao ministério correto
+    await db.execute(
+      sql`UPDATE schedules SET ministerio_id = ${louvor.id} WHERE tipo = 'louvor' AND ministerio_id IS NULL`
+    );
+    await db.execute(
+      sql`UPDATE schedules SET ministerio_id = ${obreiros.id} WHERE tipo = 'obreiros' AND ministerio_id IS NULL`
+    );
+
+    // Migra membros das flags booleanas para a junction table
+    await db.execute(
+      sql`INSERT INTO user_ministerios (user_id, ministerio_id, is_lider)
+          SELECT id, ${louvor.id}, is_lider FROM users WHERE ministerio_louvor = true
+          ON CONFLICT DO NOTHING`
+    );
+    await db.execute(
+      sql`INSERT INTO user_ministerios (user_id, ministerio_id, is_lider)
+          SELECT id, ${obreiros.id}, false FROM users WHERE ministerio_obreiro = true
+          ON CONFLICT DO NOTHING`
+    );
+  }
+
+  async getUserMinisterios(userId: number): Promise<(Ministerio & { isLider: boolean })[]> {
     const rows = await db
-      .select({ ministerio: ministerios })
+      .select({ ministerio: ministerios, isLider: userMinisterios.isLider })
       .from(userMinisterios)
       .innerJoin(ministerios, eq(userMinisterios.ministerioId, ministerios.id))
       .where(eq(userMinisterios.userId, userId));
-    return rows.map(r => r.ministerio);
+    return rows.map(r => ({ ...r.ministerio, isLider: r.isLider }));
   }
 
-  async addUserToMinisterio(userId: number, ministerioId: number): Promise<void> {
-    await db.insert(userMinisterios).values({ userId, ministerioId }).onConflictDoNothing();
+  async addUserToMinisterio(userId: number, ministerioId: number, isLider = false): Promise<void> {
+    await db.insert(userMinisterios).values({ userId, ministerioId, isLider }).onConflictDoNothing();
   }
 
   async removeUserFromMinisterio(userId: number, ministerioId: number): Promise<void> {
     await db.delete(userMinisterios).where(
-      and(
-        eq(userMinisterios.userId, userId),
-        eq(userMinisterios.ministerioId, ministerioId)
-      )
+      and(eq(userMinisterios.userId, userId), eq(userMinisterios.ministerioId, ministerioId))
     );
+  }
+
+  async setUserMinisterioLider(userId: number, ministerioId: number, isLider: boolean): Promise<void> {
+    await db.update(userMinisterios)
+      .set({ isLider })
+      .where(and(eq(userMinisterios.userId, userId), eq(userMinisterios.ministerioId, ministerioId)));
   }
 
   async getUsersByMinisterioId(ministerioId: number): Promise<User[]> {
@@ -999,6 +1049,26 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(users, eq(userMinisterios.userId, users.id))
       .where(eq(userMinisterios.ministerioId, ministerioId));
     return rows.map(r => r.user);
+  }
+
+  async getUserLeaderMinisterios(userId: number): Promise<Ministerio[]> {
+    const rows = await db
+      .select({ ministerio: ministerios })
+      .from(userMinisterios)
+      .innerJoin(ministerios, eq(userMinisterios.ministerioId, ministerios.id))
+      .where(and(eq(userMinisterios.userId, userId), eq(userMinisterios.isLider, true)));
+    return rows.map(r => r.ministerio);
+  }
+
+  async isUserLeaderOfMinisterio(userId: number, ministerioId: number): Promise<boolean> {
+    const rows = await db.select().from(userMinisterios).where(
+      and(
+        eq(userMinisterios.userId, userId),
+        eq(userMinisterios.ministerioId, ministerioId),
+        eq(userMinisterios.isLider, true)
+      )
+    ).limit(1);
+    return rows.length > 0;
   }
 
   async checkScheduleConflict(
