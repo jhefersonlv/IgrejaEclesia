@@ -146,6 +146,12 @@ export default function AgendaPage() {
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
+  // Verifica se o usuário é líder ou admin para decidir o que mostrar
+  const { data: cargosData } = useQuery<{ cargos: string[] }>({
+    queryKey: ["/api/meus-cargos"],
+  });
+  const isLiderOuAdmin = (cargosData?.cargos ?? []).some(c => c === "admin" || c === "lider");
+
   const { data: agenda, isLoading } = useQuery<AgendaData>({
     queryKey: ["/api/agenda", selectedMonth, selectedYear],
     queryFn: () => apiRequest("GET", `/api/agenda?month=${selectedMonth}&year=${selectedYear}`),
@@ -183,7 +189,7 @@ export default function AgendaPage() {
     return days;
   }, [selectedMonth, selectedYear]);
 
-  // Map date -> data
+  // Map date -> data (escalas só para líderes/admins)
   const dataByDate = useMemo(() => {
     const map: Record<string, DayData> = {};
     const ensure = (d: string) => { if (!map[d]) map[d] = { events: [], schedules: [], cultos: [] }; };
@@ -192,17 +198,19 @@ export default function AgendaPage() {
       ensure(ev.data);
       map[ev.data].events.push(ev);
     }
-    for (const sc of agenda?.schedules ?? []) {
-      const dateKey = sc.data.split("T")[0];
-      ensure(dateKey);
-      map[dateKey].schedules.push(sc);
+    if (isLiderOuAdmin) {
+      for (const sc of agenda?.schedules ?? []) {
+        const dateKey = sc.data.split("T")[0];
+        ensure(dateKey);
+        map[dateKey].schedules.push(sc);
+      }
     }
     for (const culto of agenda?.cultosRecorrentes ?? []) {
       ensure(culto.dataCulto);
       map[culto.dataCulto].cultos.push(culto);
     }
     return map;
-  }, [agenda]);
+  }, [agenda, isLiderOuAdmin]);
 
   const todayStr = format(now, "yyyy-MM-dd");
   const selectedDayData = selectedDay ? (dataByDate[selectedDay] ?? { events: [], schedules: [], cultos: [] }) : null;
@@ -231,9 +239,9 @@ export default function AgendaPage() {
       {/* Legend */}
       <div className="flex flex-wrap gap-3 text-xs">
         <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-500 inline-block" />Evento</div>
-        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-purple-500 inline-block" />Escala</div>
-        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-yellow-500 inline-block" />Culto recorrente</div>
-        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" />Escala pendente</div>
+        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-yellow-500 inline-block" />Culto</div>
+        {isLiderOuAdmin && <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-purple-500 inline-block" />Escala</div>}
+        {isLiderOuAdmin && <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" />Escala pendente</div>}
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
@@ -284,9 +292,9 @@ export default function AgendaPage() {
                       </div>
                       <div className="flex flex-wrap gap-0.5">
                         {hasEvent && <span className="w-2.5 h-2.5 rounded-full bg-blue-500" title="Evento" />}
-                        {hasSchedule && <span className="w-2.5 h-2.5 rounded-full bg-purple-500" title="Escala" />}
-                        {hasCulto && !hasPending && <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" title="Culto recorrente" />}
-                        {hasPending && <span className="w-2.5 h-2.5 rounded-full bg-red-500" title="Escala pendente" />}
+                        {hasCulto && <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" title="Culto" />}
+                        {isLiderOuAdmin && hasSchedule && !hasPending && <span className="w-2.5 h-2.5 rounded-full bg-purple-500" title="Escala" />}
+                        {isLiderOuAdmin && hasPending && <span className="w-2.5 h-2.5 rounded-full bg-red-500" title="Escala pendente" />}
                       </div>
                     </div>
                   );
@@ -312,7 +320,10 @@ export default function AgendaPage() {
               ) : (
                 <DayDetail
                   date={selectedDay}
-                  data={selectedDayData!}
+                  data={{
+                    ...selectedDayData!,
+                    schedules: isLiderOuAdmin ? (selectedDayData?.schedules ?? []) : [],
+                  }}
                   ministerios={ministerios}
                 />
               )}
