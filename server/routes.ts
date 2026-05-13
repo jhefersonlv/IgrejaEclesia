@@ -1091,6 +1091,15 @@ app.get("/api/members/birthdays", authenticateToken, async (req: Request, res: R
   // ── Ministérios ──────────────────────────────────────────────────────────────
 
   // Ministérios que o usuário lidera (ou todos, se admin)
+  // Todos os ministérios do usuário autenticado (membro ou líder)
+  app.get("/api/ministerios/meus", authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId;
+      const lista = await storage.getUserMinisterios(userId);
+      res.json(lista);
+    } catch { res.status(500).json({ message: "Erro ao buscar ministérios" }); }
+  });
+
   app.get("/api/ministerios/meus-liderancas", authenticateToken, async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;

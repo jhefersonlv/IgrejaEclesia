@@ -11,7 +11,7 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { BookOpen, Video, GraduationCap, User, LogOut, Heart, Shield, Home, Users, Music, Users2, CalendarRange } from "lucide-react";
+import { BookOpen, Video, GraduationCap, User, LogOut, Heart, Shield, Home, Users, CalendarRange, CalendarDays } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 
@@ -20,11 +20,10 @@ interface AppSidebarProps {
   isLider?: boolean;
   isAdmin?: boolean;
   isObreiro?: boolean;
-  isLouvor?: boolean;
   fotoUrl?: string;
 }
 
-export function AppSidebar({ userNome, isLider, isAdmin, isObreiro, isLouvor, fotoUrl }: AppSidebarProps) {
+export function AppSidebar({ userNome, isLider, isAdmin, isObreiro, fotoUrl }: AppSidebarProps) {
   const [location, setLocation] = useLocation();
 
   const items = [
@@ -59,6 +58,11 @@ export function AppSidebar({ userNome, isLider, isAdmin, isObreiro, isLouvor, fo
       icon: CalendarRange,
     },
     {
+      title: "Minhas Escalas",
+      url: "/membro/escalas",
+      icon: CalendarDays,
+    },
+    {
       title: "Perfil",
       url: "/membro/perfil",
       icon: User,
@@ -73,9 +77,6 @@ export function AppSidebar({ userNome, isLider, isAdmin, isObreiro, isLouvor, fo
       icon: Users,
     });
   }
-
-  // Adicionar submenu de Escalas se for obreiro OU louvor
-  const showEscalas = isObreiro || isLouvor;
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -120,43 +121,6 @@ export function AppSidebar({ userNome, isLider, isAdmin, isObreiro, isLouvor, fo
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Submenu de Escalas */}
-        {showEscalas && (
-          <>
-            <SidebarSeparator />
-            <SidebarGroup>
-              <SidebarGroupLabel>Escalas</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {isLouvor && (
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        onClick={() => setLocation("/membro/escalas/louvor")}
-                        isActive={location === "/membro/escalas/louvor" || location.startsWith("/membro/escalas/louvor")}
-                        data-testid="link-escalas-louvor"
-                      >
-                        <Music className="w-4 h-4" />
-                        <span>Escalas de Louvor</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )}
-                  {isObreiro && (
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        onClick={() => setLocation("/membro/escalas/obreiros")}
-                        isActive={location === "/membro/escalas/obreiros" || location.startsWith("/membro/escalas/obreiros")}
-                        data-testid="link-escalas-obreiros"
-                      >
-                        <Users2 className="w-4 h-4" />
-                        <span>Escalas de Obreiros</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </>
-        )}
 
         {(isAdmin || isLider) && (
           <>
