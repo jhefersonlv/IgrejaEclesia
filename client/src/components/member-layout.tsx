@@ -47,7 +47,7 @@ export function MemberLayout({ children }: MemberLayoutProps) {
           <header className="flex items-center justify-between p-4 border-b">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
           </header>
-          <main className="flex-1 overflow-y-auto p-8 bg-background">
+          <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 bg-background">
             {children}
           </main>
         </div>

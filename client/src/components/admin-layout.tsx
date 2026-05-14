@@ -83,38 +83,39 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 bg-card border-b">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4">
+          <div className="flex items-center gap-2 md:gap-3">
             <div className="p-2 rounded-lg bg-primary/10">
-              <Church className="w-6 h-6 text-primary" />
+              <Church className="w-5 h-5 md:w-6 md:h-6 text-primary" />
             </div>
             <div>
-              <h1 className="font-sans font-semibold text-lg">
-                {isAdmin ? "Painel Administrativo" : "Painel do Líder"}
+              <h1 className="font-sans font-semibold text-base md:text-lg">
+                {isAdmin ? "Painel Admin" : "Painel do Líder"}
               </h1>
-              <p className="text-sm text-muted-foreground">Olá, {user.nome}</p>
+              <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">Olá, {user.nome}</p>
             </div>
           </div>
-          <Button variant="ghost" onClick={handleLogout}>
-            <LogOut className="w-4 h-4 mr-2" />
-            Sair
+          <Button variant="ghost" size="sm" onClick={handleLogout}>
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline ml-2">Sair</span>
           </Button>
         </div>
-        <nav className="flex gap-1 px-6 overflow-x-auto pb-1">
+        <nav className="flex gap-1 px-3 md:px-6 overflow-x-auto pb-1 scrollbar-hide">
           {navItems.map((item) => (
             <Link key={item.path} href={item.path}>
               <Button
                 variant={location === item.path ? "secondary" : "ghost"}
-                className="gap-2 whitespace-nowrap"
+                className="gap-2 whitespace-nowrap px-2 md:px-3"
+                size="sm"
               >
-                <item.icon className="w-4 h-4" />
-                {item.label}
+                <item.icon className="w-4 h-4 shrink-0" />
+                <span className="hidden sm:inline">{item.label}</span>
               </Button>
             </Link>
           ))}
         </nav>
       </header>
-      <main className="p-8 max-w-7xl mx-auto">
+      <main className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full">
         {children}
       </main>
     </div>

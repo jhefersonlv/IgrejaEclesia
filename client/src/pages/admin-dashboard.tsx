@@ -47,16 +47,16 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-sans text-4xl font-semibold mb-2" data-testid="text-admin-title">
+        <h1 className="font-sans text-2xl md:text-4xl font-semibold mb-2" data-testid="text-admin-title">
           Dashboard Administrativo
         </h1>
-        <p className="text-lg text-muted-foreground">
+        <p className="text-base md:text-lg text-muted-foreground">
           Visão geral do sistema
         </p>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <Card className="hover-elevate" data-testid="card-stat-members">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total de Membros</CardTitle>
@@ -112,8 +112,8 @@ export default function AdminDashboard() {
 
       {/* Quick Actions */}
       <div>
-        <h2 className="font-sans text-2xl font-semibold mb-6">Ações Rápidas</h2>
-        <div className="grid md:grid-cols-3 gap-4">
+        <h2 className="font-sans text-xl md:text-2xl font-semibold mb-4 md:mb-6">Ações Rápidas</h2>
+        <div className="grid sm:grid-cols-3 gap-4">
           <Card className="hover-elevate cursor-pointer" onClick={() => window.location.href = '/admin/members'}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -160,10 +160,10 @@ export default function AdminDashboard() {
 
       {/* Course Analytics */}
       <div>
-        <h2 className="font-sans text-2xl font-semibold mb-6">Progresso dos Cursos</h2>
+        <h2 className="font-sans text-xl md:text-2xl font-semibold mb-4 md:mb-6">Progresso dos Cursos</h2>
         
         {analyticsLoading ? (
-          <div className="grid md:grid-cols-3 gap-4 mb-6">
+          <div className="grid sm:grid-cols-3 gap-4 mb-6">
             {[1, 2, 3].map((i) => (
               <Card key={i}>
                 <CardHeader>
@@ -177,7 +177,7 @@ export default function AdminDashboard() {
           </div>
         ) : courseAnalytics ? (
           <>
-            <div className="grid md:grid-cols-3 gap-4 mb-6">
+            <div className="grid sm:grid-cols-3 gap-4 mb-6">
               <Card className="hover-elevate" data-testid="card-total-lessons">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total de Aulas</CardTitle>

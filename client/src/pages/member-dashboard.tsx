@@ -147,16 +147,16 @@ export default function MemberDashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-sans text-4xl font-semibold mb-2" data-testid="text-dashboard-title">
+        <h1 className="font-sans text-2xl md:text-4xl font-semibold mb-2" data-testid="text-dashboard-title">
           Dashboard
         </h1>
-        <p className="text-lg text-muted-foreground">
+        <p className="text-base md:text-lg text-muted-foreground">
           Bem-vindo de volta! Continue seu aprendizado.
         </p>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid sm:grid-cols-3 gap-4 md:gap-6">
         <Card className="hover-elevate" data-testid="card-stat-courses">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total de Cursos</CardTitle>
@@ -210,11 +210,11 @@ export default function MemberDashboard() {
 
       {/* Cursos Disponíveis */}
       <div>
-        <h2 className="font-sans text-2xl font-semibold mb-6" data-testid="text-recent-courses">
+        <h2 className="font-sans text-xl md:text-2xl font-semibold mb-4 md:mb-6" data-testid="text-recent-courses">
           Cursos Disponíveis
         </h2>
         {courses.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {courses.slice(0, 3).map((course) => (
               <Card key={course.id} className="hover-elevate" data-testid={`card-course-${course.id}`}>
                 {course.imagem && (
@@ -247,7 +247,7 @@ export default function MemberDashboard() {
 
       {/* Recent Materials */}
       <div>
-        <h2 className="font-sans text-2xl font-semibold mb-6" data-testid="text-recent-materials">
+        <h2 className="font-sans text-xl md:text-2xl font-semibold mb-4 md:mb-6" data-testid="text-recent-materials">
           Materiais Recentes
         </h2>
         {pdfs.length > 0 ? (

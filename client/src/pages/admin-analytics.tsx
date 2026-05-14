@@ -79,16 +79,16 @@ export default function AdminAnalyticsPage() {
       {/* ===== Seção Membros ===== */}
       <div className="space-y-8">
         <div>
-          <h1 className="font-sans text-4xl font-semibold mb-2" data-testid="text-analytics-title">
+          <h1 className="font-sans text-2xl md:text-4xl font-semibold mb-2" data-testid="text-analytics-title">
             Analytics
           </h1>
-          <p className="text-lg text-muted-foreground">
+          <p className="text-base md:text-lg text-muted-foreground">
             Visão geral dos membros da igreja
           </p>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
@@ -209,7 +209,7 @@ export default function AdminAnalyticsPage() {
                 <BarChart data={analytics.membersByProfession} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" />
-                  <YAxis dataKey="profession" type="category" width={150} />
+                  <YAxis dataKey="profession" type="category" width={100} tick={{ fontSize: 12 }} />
                   <Tooltip />
                   <Bar dataKey="count" fill="#3B82F6" radius={[0, 8, 8, 0]} />
                 </BarChart>
@@ -222,8 +222,8 @@ export default function AdminAnalyticsPage() {
       {/* ===== Seção Visitantes ===== */}
       <div className="space-y-8">
         <div>
-          <h2 className="text-2xl font-semibold">Visitantes</h2>
-          <p className="text-muted-foreground">Visão dos visitantes (últimos cadastros e origem)</p>
+          <h2 className="text-xl md:text-2xl font-semibold">Visitantes</h2>
+          <p className="text-sm md:text-base text-muted-foreground">Visão dos visitantes (últimos cadastros e origem)</p>
         </div>
 
         {visitorsLoading ? (
@@ -233,7 +233,7 @@ export default function AdminAnalyticsPage() {
             {visitorsError && (
               <p className="text-amber-600">Não foi possível carregar dados atualizados. Exibindo valores padrão.</p>
             )}
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm">Total de Visitantes</CardTitle>
@@ -316,8 +316,8 @@ export default function AdminAnalyticsPage() {
       {/* ===== Seção Geral ===== */}
       <div className="space-y-8">
         <div>
-          <h2 className="text-2xl font-semibold">Geral</h2>
-          <p className="text-muted-foreground">Membros + Visitantes</p>
+          <h2 className="text-xl md:text-2xl font-semibold">Geral</h2>
+          <p className="text-sm md:text-base text-muted-foreground">Membros + Visitantes</p>
         </div>
 
         {generalLoading ? (
@@ -327,7 +327,7 @@ export default function AdminAnalyticsPage() {
             {generalError && (
               <p className="text-amber-600">Não foi possível carregar dados atualizados. Exibindo valores padrão.</p>
             )}
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Card>
                 <CardHeader><CardTitle className="text-sm">Total Pessoas</CardTitle></CardHeader>
                 <CardContent>
